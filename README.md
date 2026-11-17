@@ -51,7 +51,22 @@ crates/cli      `lethe` terminal client
 app/            Tauri 2 desktop + mobile app (src-tauri = Rust shell, ui = dependency-free HTML/JS)
 ```
 
-## Running it
+## Install
+
+Pre-built installers are on the [Releases page](https://github.com/kafkaesqueismn/lethe/releases) once a version is tagged. GitHub Actions builds them automatically.
+
+| Platform | How |
+|---|---|
+| **Windows** | Download the `.exe` installer (or `.msi`) from Releases. Windows SmartScreen will warn about an unknown publisher, because the prototype isn't code-signed: click *More info → Run anyway*. |
+| **Arch / any Linux** | Download the `.AppImage`, `chmod +x` it and run it. Or build and install from source with `scripts/install-linux.sh` (adds lethe to your app menu; `scripts/install-linux.sh uninstall` removes it). |
+| **Debian / Ubuntu, Fedora** | `.deb` / `.rpm` from Releases. |
+| **macOS** | `.dmg` from Releases. It's unsigned, so right-click → *Open* the first time. |
+| **Android** | `lethe-android.apk` from Releases. Allow your browser or file manager to *install unknown apps*. |
+| **iOS** | Not yet. Building for iOS needs a Mac with Xcode, and installing on other people's phones needs an Apple Developer account. |
+
+**Every device needs to reach the same relay.** A relay on `127.0.0.1` only works on that one computer. To test between your PC and phone on the same Wi-Fi, run `lethe-relay --listen 0.0.0.0:5223 --host <your PC's LAN IP>` and use the address it prints. For real use, run it on a server with a public address.
+
+## Running it (development)
 
 The quickest way to try it is a local relay plus two app windows, so you can message yourself:
 
@@ -79,7 +94,7 @@ cargo run -p lethe-cli -- --profile bob   --relay 'lethe-relay://…' --name Bob
 
 ### Desktop app
 
-Needs webkit2gtk-4.1 on Linux (WebView2 on Windows, nothing extra on macOS).
+Needs webkit2gtk-4.1 on Linux (Arch: `sudo pacman -S --needed webkit2gtk-4.1 base-devel`), WebView2 on Windows (preinstalled on Windows 10/11), nothing extra on macOS.
 
 ```sh
 cargo install tauri-cli --version '^2' --locked
@@ -98,7 +113,15 @@ rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-and
 cd app/src-tauri && cargo tauri android init && cargo tauri android dev
 ```
 
+Release APKs are signed in CI with a key that the maintainer sets up once with `scripts/setup-android-signing.sh`.
+
 Background delivery on mobile is still an open design question. Polling keeps the most privacy; push notifications would need a push relay that learns some metadata.
+
+## Branches and releases
+
+- `dev` is where work happens. Every push runs the tests (see `.github/workflows/ci.yml`).
+- `main` holds stable states. Merge `dev` into it when something is ready.
+- Tag a commit (`git tag v0.1.0 && git push --tags`) to build installers for every platform and publish a pre-release. Builds can also be started by hand from the Actions tab (*Build installers → Run workflow*), with files attached to the run instead of a release.
 
 ## License
 

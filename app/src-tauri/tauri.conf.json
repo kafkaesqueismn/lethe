@@ -3,15 +3,44 @@
   "productName": "lethe",
   "version": "0.1.0",
   "identifier": "org.lethe.messenger",
-  "build": { "frontendDist": "../ui" },
+  "build": {
+    "frontendDist": "../ui"
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [
-      { "label": "main", "title": "lethe", "width": 980, "height": 680, "minWidth": 360, "minHeight": 480 }
+      {
+        "label": "main",
+        "title": "lethe",
+        "width": 980,
+        "height": 680,
+        "minWidth": 360,
+        "minHeight": 480
+      }
     ],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
     }
   },
-  "bundle": { "active": true, "targets": "all", "icon": ["icons/icon.png"] }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "SocialNetworking",
+    "shortDescription": "Private messenger with no accounts or identifiers",
+    "longDescription": "lethe is a prototype privacy-first messenger: no accounts, phone numbers or user IDs. Contacts connect with one-time invitations over anonymous relay queues, and messages are end-to-end encrypted with the Double Ratchet.",
+    "copyright": "AGPL-3.0-or-later",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
+  }
 }
