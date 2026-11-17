@@ -35,6 +35,14 @@ stop_relay() {
   rm -f "$DEV/relay.pid"
 }
 
+# Stop everything this script started, however it exits (window closed, Ctrl+C, killed).
+cleanup() {
+  trap - EXIT INT TERM
+  pkill -TERM -P $$ 2>/dev/null || true   # app windows / cargo
+  pkill -TERM -f "$ROOT/app/src-tauri/target/debug/lethe-app" 2>/dev/null || true
+  stop_relay
+}
+
 app() { # app [profile-name]
   local envs=(LETHE_DEFAULT_RELAY="$RELAY")
   [[ -n ${1:-} ]] && envs+=(LETHE_DATA_DIR="$DEV/$1")
@@ -46,16 +54,16 @@ case ${1:-app} in
     stop_relay
     exec "$ROOT/target/debug/lethe-relay" --listen 127.0.0.1:5223 --host 127.0.0.1 --data-dir "$DEV/relay" ;;
   app)
-    start_relay; trap stop_relay EXIT
+    start_relay; trap cleanup EXIT INT TERM
     echo "==> opening the app"
     app ;;
   two)
-    start_relay; trap stop_relay EXIT
+    start_relay; trap cleanup EXIT INT TERM
     (cd app/src-tauri && cargo build -q)
     echo "==> opening two windows: alice and bob"
     app alice & app bob & wait ;;
   cli)
-    start_relay; trap stop_relay EXIT
+    start_relay; trap cleanup EXIT INT TERM
     name=${2:?usage: ./run.sh cli NAME}
     "$ROOT/target/debug/lethe" --profile "$DEV/cli-$name" --relay "$RELAY" --name "$name" ;;
   *) sed -n '2,8p' "$0"; exit 1 ;;

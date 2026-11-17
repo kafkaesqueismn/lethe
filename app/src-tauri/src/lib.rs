@@ -23,6 +23,8 @@ struct Settings {
     relay: Option<String>,
     socks_proxy: Option<String>,
     profile_name: Option<String>,
+    /// Lock after this many idle minutes; 0 = never. `None` = default (5).
+    auto_lock_minutes: Option<u32>,
 }
 
 #[derive(Default)]
@@ -96,8 +98,10 @@ fn profile_exists(app: AppHandle) -> CmdResult<bool> {
 #[tauri::command]
 async fn unlock(app: AppHandle, state: State<'_, AppState>, passphrase: String) -> CmdResult<()> {
     let mut slot = state.agent.lock().await;
-    if slot.is_some() {
-        return Ok(());
+    // Never trust an already-open session: if the UI was reloaded while unlocked, a
+    // shortcut here would accept any passphrase. Close it and re-verify from disk.
+    if let Some(old) = slot.take() {
+        old.shutdown().await;
     }
     let settings = load_settings(&app);
     let socks_proxy = match settings.socks_proxy.as_deref().filter(|s| !s.is_empty()) {
@@ -156,6 +160,7 @@ fn set_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) 
         relay: clean(settings.relay),
         socks_proxy: clean(settings.socks_proxy),
         profile_name: clean(settings.profile_name),
+        auto_lock_minutes: settings.auto_lock_minutes.map(|m| m.min(24 * 60)),
     };
     if let Some(r) = &settings.relay {
         r.parse::<RelayAddr>().map_err(err)?;
