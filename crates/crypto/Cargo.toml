@@ -1,6 +1,6 @@
 [package]
-name = "niche-crypto"
-description = "Cryptographic building blocks for niche: X3DH-style key agreement, Double Ratchet, padding"
+name = "lethe-crypto"
+description = "Cryptographic building blocks for lethe: X3DH-style key agreement, Double Ratchet, padding"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

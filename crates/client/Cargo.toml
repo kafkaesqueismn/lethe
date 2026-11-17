@@ -1,13 +1,13 @@
 [package]
-name = "niche-client"
-description = "niche client agent: contacts, queues, end-to-end encryption, encrypted local store"
+name = "lethe-client"
+description = "lethe client agent: contacts, queues, end-to-end encryption, encrypted local store"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
-niche-proto.workspace = true
-niche-crypto.workspace = true
+lethe-proto.workspace = true
+lethe-crypto.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 tokio-rustls.workspace = true
@@ -22,5 +22,5 @@ zeroize.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-niche-relay.workspace = true
+lethe-relay.workspace = true
 tempfile.workspace = true

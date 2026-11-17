@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-command local setup: starts a relay on this machine and opens niche pointed at it.
+# One-command local setup: starts a relay on this machine and opens lethe pointed at it.
 #
 #   ./run.sh            open the app
 #   ./run.sh two        open two app windows (alice + bob) to try messaging yourself
@@ -12,21 +12,21 @@ DEV=$ROOT/.dev
 mkdir -p "$DEV"
 
 echo "==> building (the first build takes a few minutes)"
-cargo build -q -p niche-relay -p niche-cli
+cargo build -q -p lethe-relay -p lethe-cli
 
 start_relay() {
   if [[ -f $DEV/relay.pid ]] && kill -0 "$(cat "$DEV/relay.pid")" 2>/dev/null; then
     echo "==> relay already running"
   else
-    "$ROOT/target/debug/niche-relay" --listen 127.0.0.1:5223 --host 127.0.0.1 --data-dir "$DEV/relay" >"$DEV/relay.log" 2>&1 &
+    "$ROOT/target/debug/lethe-relay" --listen 127.0.0.1:5223 --host 127.0.0.1 --data-dir "$DEV/relay" >"$DEV/relay.log" 2>&1 &
     echo $! >"$DEV/relay.pid"
-    for _ in $(seq 50); do grep -q 'niche-relay://' "$DEV/relay.log" 2>/dev/null && break; sleep 0.1; done
-    if ! grep -q 'niche-relay://' "$DEV/relay.log"; then
+    for _ in $(seq 50); do grep -q 'lethe-relay://' "$DEV/relay.log" 2>/dev/null && break; sleep 0.1; done
+    if ! grep -q 'lethe-relay://' "$DEV/relay.log"; then
       echo "relay failed to start:"; cat "$DEV/relay.log"; exit 1
     fi
     echo "==> relay started (log: .dev/relay.log)"
   fi
-  RELAY=$(grep -o 'niche-relay://[^ ]*' "$DEV/relay.log" | head -1)
+  RELAY=$(grep -o 'lethe-relay://[^ ]*' "$DEV/relay.log" | head -1)
   echo "    $RELAY"
 }
 
@@ -36,15 +36,15 @@ stop_relay() {
 }
 
 app() { # app [profile-name]
-  local envs=(NICHE_DEFAULT_RELAY="$RELAY")
-  [[ -n ${1:-} ]] && envs+=(NICHE_DATA_DIR="$DEV/$1")
+  local envs=(LETHE_DEFAULT_RELAY="$RELAY")
+  [[ -n ${1:-} ]] && envs+=(LETHE_DATA_DIR="$DEV/$1")
   (cd "$ROOT/app/src-tauri" && env "${envs[@]}" cargo run -q)
 }
 
 case ${1:-app} in
   relay)
     stop_relay
-    exec "$ROOT/target/debug/niche-relay" --listen 127.0.0.1:5223 --host 127.0.0.1 --data-dir "$DEV/relay" ;;
+    exec "$ROOT/target/debug/lethe-relay" --listen 127.0.0.1:5223 --host 127.0.0.1 --data-dir "$DEV/relay" ;;
   app)
     start_relay; trap stop_relay EXIT
     echo "==> opening the app"
@@ -57,6 +57,6 @@ case ${1:-app} in
   cli)
     start_relay; trap stop_relay EXIT
     name=${2:?usage: ./run.sh cli NAME}
-    "$ROOT/target/debug/niche" --profile "$DEV/cli-$name" --relay "$RELAY" --name "$name" ;;
+    "$ROOT/target/debug/lethe" --profile "$DEV/cli-$name" --relay "$RELAY" --name "$name" ;;
   *) sed -n '2,8p' "$0"; exit 1 ;;
 esac

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use clap::Parser;
 
-/// niche relay: hosts anonymous one-way message queues. No accounts, no logs of who talks to whom.
+/// lethe relay: hosts anonymous one-way message queues. No accounts, no logs of who talks to whom.
 #[derive(Parser)]
 #[command(version)]
 struct Args {
@@ -29,7 +29,7 @@ struct Args {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_env_filter(tracing_subscriber::EnvFilter::from_default_env()).init();
     let args = Args::parse();
-    let relay = niche_relay::start(niche_relay::Config {
+    let relay = lethe_relay::start(lethe_relay::Config {
         listen: args.listen,
         public_host: args.host,
         data_dir: Some(args.data_dir),
@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
         ..Default::default()
     })
     .await?;
-    println!("niche relay listening on {}", relay.local_addr);
+    println!("lethe relay listening on {}", relay.local_addr);
     println!("relay address (share this with clients):\n  {}", relay.addr);
     tokio::signal::ctrl_c().await?;
     relay.shutdown();

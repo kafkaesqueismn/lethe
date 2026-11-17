@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    niche_app_lib::run()
+    lethe_app_lib::run()
 }

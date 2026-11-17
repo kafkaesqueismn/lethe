@@ -5,7 +5,7 @@
 //!
 //! ```text
 //! DH1 = DH(ik_b, ek_a)   DH2 = DH(ek_b, ik_a)   DH3 = DH(ek_b, ek_a)
-//! SK  = HKDF(salt = 0^32, ikm = 0xFF^32 || DH1 || DH2 || DH3, info = "niche x3dh v1")
+//! SK  = HKDF(salt = 0^32, ikm = 0xFF^32 || DH1 || DH2 || DH3, info = "lethe x3dh v1")
 //! AD  = ik_a || ik_b
 //! ```
 //!
@@ -17,7 +17,7 @@ use crate::primitives::{hkdf, DhKeyPair};
 use crate::ratchet::Ratchet;
 use crate::Result;
 
-const INFO: &[u8] = b"niche x3dh v1";
+const INFO: &[u8] = b"lethe x3dh v1";
 
 /// Alice's secret half of an invitation.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]

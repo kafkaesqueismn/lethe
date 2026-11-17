@@ -8,8 +8,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use niche_crypto::SigningKeyPair;
-use niche_proto::{
+use lethe_crypto::SigningKeyPair;
+use lethe_proto::{
     decode_block, encode_block, signed_bytes, ClientFrame, Command, MsgId, QueueId, RelayAddr, Response, ServerFrame,
     SessionId,
 };
@@ -76,10 +76,10 @@ impl RelayConn {
             .with_custom_certificate_verifier(Arc::new(PinnedCert { fingerprint: addr.fingerprint, provider }))
             .with_no_client_auth();
         let tls = tokio_rustls::TlsConnector::from(Arc::new(config))
-            .connect(ServerName::try_from("niche-relay").expect("valid name"), tcp)
+            .connect(ServerName::try_from("lethe-relay").expect("valid name"), tcp)
             .await
             .map_err(net)?;
-        let (ws, _) = tokio_tungstenite::client_async("wss://niche-relay/", tls).await.map_err(net)?;
+        let (ws, _) = tokio_tungstenite::client_async("wss://lethe-relay/", tls).await.map_err(net)?;
         let (mut sink, mut source) = ws.split();
 
         let session_id = match source.next().await {
@@ -192,7 +192,7 @@ impl ServerCertVerifier for PinnedCert {
         _ocsp: &[u8],
         _now: UnixTime,
     ) -> std::result::Result<ServerCertVerified, rustls::Error> {
-        if niche_crypto::primitives::sha256(end_entity) == self.fingerprint {
+        if lethe_crypto::primitives::sha256(end_entity) == self.fingerprint {
             Ok(ServerCertVerified::assertion())
         } else {
             Err(rustls::Error::General("relay certificate does not match pinned fingerprint".into()))

@@ -1,4 +1,4 @@
-//! The niche relay protocol, modelled on SimpleX SMP.
+//! The lethe relay protocol, modelled on SimpleX SMP.
 //!
 //! A relay hosts **simplex (one-way) queues**. Each queue has two unrelated random IDs:
 //! the *recipient ID*, known only to the recipient, and the *sender ID*, given to the
@@ -93,7 +93,7 @@ pub enum ServerFrame {
 
 /// Bytes covered by a command signature.
 pub fn signed_bytes(session_id: &SessionId, corr_id: u64, entity: &QueueId, cmd: &Command) -> Vec<u8> {
-    postcard::to_stdvec(&(b"niche-cmd-v1", session_id, corr_id, entity, cmd)).expect("serializable")
+    postcard::to_stdvec(&(b"lethe-cmd-v1", session_id, corr_id, entity, cmd)).expect("serializable")
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -107,14 +107,14 @@ pub enum FrameError {
 /// Serialize and pad to exactly [`BLOCK_SIZE`].
 pub fn encode_block<T: Serialize>(value: &T) -> Result<Vec<u8>, FrameError> {
     let raw = postcard::to_stdvec(value).map_err(|_| FrameError::Malformed)?;
-    niche_crypto::pad::pad(&raw, BLOCK_SIZE).map_err(|_| FrameError::TooLarge)
+    lethe_crypto::pad::pad(&raw, BLOCK_SIZE).map_err(|_| FrameError::TooLarge)
 }
 
 pub fn decode_block<T: for<'de> Deserialize<'de>>(block: &[u8]) -> Result<T, FrameError> {
     if block.len() != BLOCK_SIZE {
         return Err(FrameError::Malformed);
     }
-    let raw = niche_crypto::pad::unpad(block).map_err(|_| FrameError::Malformed)?;
+    let raw = lethe_crypto::pad::unpad(block).map_err(|_| FrameError::Malformed)?;
     postcard::from_bytes(raw).map_err(|_| FrameError::Malformed)
 }
 
@@ -174,17 +174,17 @@ mod tests {
 /// Relay→recipient delivery encryption (the per-queue layer). Both sides derive the
 /// key from `DH(server_dh, recipient_dh)`; `msg_id` is a fresh random nonce.
 pub mod delivery {
-    use niche_crypto::primitives::{hkdf, open, seal};
+    use lethe_crypto::primitives::{hkdf, open, seal};
 
     pub fn key(shared_dh: &[u8; 32]) -> [u8; 32] {
-        hkdf(b"niche-delivery-v1", shared_dh, b"queue delivery key")
+        hkdf(b"lethe-delivery-v1", shared_dh, b"queue delivery key")
     }
 
     pub fn seal_body(key: &[u8; 32], msg_id: &super::MsgId, ts: u64, body: &[u8]) -> Vec<u8> {
         seal(key, msg_id, body, &ts.to_be_bytes())
     }
 
-    pub fn open_body(key: &[u8; 32], msg_id: &super::MsgId, ts: u64, body: &[u8]) -> niche_crypto::Result<Vec<u8>> {
+    pub fn open_body(key: &[u8; 32], msg_id: &super::MsgId, ts: u64, body: &[u8]) -> lethe_crypto::Result<Vec<u8>> {
         open(key, msg_id, body, &ts.to_be_bytes())
     }
 }

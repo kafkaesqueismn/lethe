@@ -26,7 +26,7 @@ pub fn load_or_generate(dir: Option<&Path>) -> anyhow::Result<Identity> {
         }
         None => generate()?,
     };
-    let fingerprint = niche_crypto::primitives::sha256(&cert);
+    let fingerprint = lethe_crypto::primitives::sha256(&cert);
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let server_config = rustls::ServerConfig::builder_with_provider(provider)
         .with_protocol_versions(&[&rustls::version::TLS13])?
@@ -36,7 +36,7 @@ pub fn load_or_generate(dir: Option<&Path>) -> anyhow::Result<Identity> {
 }
 
 fn generate() -> anyhow::Result<(Vec<u8>, Vec<u8>)> {
-    let ck = rcgen::generate_simple_self_signed(vec!["niche-relay".to_string()])?;
+    let ck = rcgen::generate_simple_self_signed(vec!["lethe-relay".to_string()])?;
     Ok((ck.cert.der().to_vec(), ck.key_pair.serialize_der()))
 }
 

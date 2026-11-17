@@ -1,4 +1,6 @@
-# niche
+# lethe
+
+*Named after Lethe, the river of forgetfulness in Greek myth: relays forget every message once it's delivered, and there's no identity to remember you by.*
 
 A private messenger with **no user identifiers at all**: no accounts, phone numbers, emails, usernames or public keys that identify you. The design follows [SimpleX](https://simplex.chat/): contacts are connected by **pairwise, anonymous one-way queues** on relays, and messages are end-to-end encrypted with the **Double Ratchet**.
 
@@ -43,9 +45,9 @@ Known gaps, tracked for later:
 ```
 crates/crypto   primitives, padding, Argon2id, X3DH-style handshake, Double Ratchet
 crates/proto    wire protocol: commands, fixed-size framing, relay addresses, delivery layer
-crates/relay    niche-relay server (lib + bin)
+crates/relay    lethe-relay server (lib + bin)
 crates/client   agent: queues, contacts, connection state machine, outbox, encrypted store
-crates/cli      `niche` terminal client
+crates/cli      `lethe` terminal client
 app/            Tauri 2 desktop + mobile app (src-tauri = Rust shell, ui = dependency-free HTML/JS)
 ```
 
@@ -64,12 +66,12 @@ Or by hand:
 ```sh
 cargo test --workspace                       # crypto, protocol, store, full end-to-end tests
 
-# a relay (prints its niche-relay://… address, including the cert fingerprint)
-cargo run --release -p niche-relay -- --host <public-host-or-ip> --data-dir relay-data
+# a relay (prints its lethe-relay://… address, including the cert fingerprint)
+cargo run --release -p lethe-relay -- --host <public-host-or-ip> --data-dir relay-data
 
 # two terminal clients
-cargo run -p niche-cli -- --profile alice --relay 'niche-relay://…' --name Alice
-cargo run -p niche-cli -- --profile bob   --relay 'niche-relay://…' --name Bob
+cargo run -p lethe-cli -- --profile alice --relay 'lethe-relay://…' --name Alice
+cargo run -p lethe-cli -- --profile bob   --relay 'lethe-relay://…' --name Bob
 #  alice> /invite            → copy the link to bob
 #  bob>   /join <link>
 #  then /open <id> and type

@@ -23,8 +23,8 @@ pub const MAX_SKIP: u32 = 1000;
 /// Maximum stored skipped keys overall; the oldest are dropped first.
 pub const MAX_STORED_SKIPPED: usize = 2000;
 
-const RK_INFO: &[u8] = b"niche ratchet rk v1";
-const MK_INFO: &[u8] = b"niche ratchet mk v1";
+const RK_INFO: &[u8] = b"lethe ratchet rk v1";
+const MK_INFO: &[u8] = b"lethe ratchet mk v1";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Header {

@@ -1991,6 +1991,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "lethe-app"
+version = "0.1.0"
+dependencies = [
+ "lethe-client",
+ "qrcode",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tokio",
+]
+
+[[package]]
+name = "lethe-client"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "futures-util",
+ "lethe-crypto",
+ "lethe-proto",
+ "postcard",
+ "rustls",
+ "serde",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tokio-socks",
+ "tokio-tungstenite",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "lethe-crypto"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "chacha20poly1305",
+ "ed25519-dalek",
+ "hkdf",
+ "hmac",
+ "postcard",
+ "rand_core",
+ "serde",
+ "sha2 0.10.9",
+ "thiserror 2.0.21",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
+name = "lethe-proto"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "lethe-crypto",
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "libappindicator"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2205,68 +2267,6 @@ name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
-
-[[package]]
-name = "niche-app"
-version = "0.1.0"
-dependencies = [
- "niche-client",
- "qrcode",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tokio",
-]
-
-[[package]]
-name = "niche-client"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "futures-util",
- "niche-crypto",
- "niche-proto",
- "postcard",
- "rustls",
- "serde",
- "thiserror 2.0.21",
- "tokio",
- "tokio-rustls",
- "tokio-socks",
- "tokio-tungstenite",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "niche-crypto"
-version = "0.1.0"
-dependencies = [
- "argon2",
- "chacha20poly1305",
- "ed25519-dalek",
- "hkdf",
- "hmac",
- "postcard",
- "rand_core",
- "serde",
- "sha2 0.10.9",
- "thiserror 2.0.21",
- "x25519-dalek",
- "zeroize",
-]
-
-[[package]]
-name = "niche-proto"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "niche-crypto",
- "postcard",
- "serde",
- "thiserror 2.0.21",
-]
 
 [[package]]
 name = "num-conv"

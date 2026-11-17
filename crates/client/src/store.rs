@@ -8,14 +8,14 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use niche_crypto::passphrase::{self, SALT_LEN};
-use niche_crypto::primitives::{open_random, random_bytes, seal_random};
+use lethe_crypto::passphrase::{self, SALT_LEN};
+use lethe_crypto::primitives::{open_random, random_bytes, seal_random};
 use zeroize::Zeroizing;
 
 use crate::error::{ClientError, Result};
 use crate::model::State;
 
-const MAGIC: &[u8; 6] = b"NICHE1";
+const MAGIC: &[u8; 6] = b"LETHE1";
 const KDF_ARGON2ID: u8 = 0;
 const KDF_TEST: u8 = 0xff;
 const HEADER_LEN: usize = MAGIC.len() + 1 + SALT_LEN;
@@ -36,7 +36,7 @@ impl Store {
         if path.exists() {
             let data = std::fs::read(path).map_err(store_err)?;
             if data.len() < HEADER_LEN || &data[..MAGIC.len()] != MAGIC {
-                return Err(ClientError::Store("not a niche store".into()));
+                return Err(ClientError::Store("not a lethe store".into()));
             }
             let header: [u8; HEADER_LEN] = data[..HEADER_LEN].try_into().unwrap();
             let salt: [u8; SALT_LEN] = header[MAGIC.len() + 1..].try_into().unwrap();
@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn create_reopen_and_wrong_passphrase() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("niche.db");
+        let path = dir.path().join("lethe.db");
         let (store, mut state) = Store::open(&path, "correct horse", true).unwrap();
         state.next_id = 42;
         store.save(&state).unwrap();
@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn tampered_file_rejected() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("niche.db");
+        let path = dir.path().join("lethe.db");
         Store::open(&path, "pw", true).unwrap();
         let mut raw = std::fs::read(&path).unwrap();
         let last = raw.len() - 1;

@@ -1,4 +1,4 @@
-// niche UI. All crypto, storage and networking live in Rust; this file only renders.
+// lethe UI. All crypto, storage and networking live in Rust; this file only renders.
 // User-controlled strings are only ever set via textContent, never innerHTML.
 
 const { invoke } = window.__TAURI__.core;
@@ -259,7 +259,7 @@ $("settings-form").addEventListener("submit", async (e) => {
 document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
 
 // ---------- events from Rust ----------
-listen("niche-event", async ({ payload: e }) => {
+listen("lethe-event", async ({ payload: e }) => {
   switch (e.type) {
     case "message":
       if (e.contactId === state.openId) {
@@ -291,7 +291,7 @@ listen("niche-event", async ({ payload: e }) => {
       break;
   }
 });
-listen("niche-resync", () => state.openId != null ? openChat(state.openId) : refreshContacts());
+listen("lethe-resync", () => state.openId != null ? openChat(state.openId) : refreshContacts());
 
 function toast(text) {
   const t = document.createElement("div");

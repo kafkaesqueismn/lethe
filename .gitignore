@@ -1,7 +1,7 @@
 /target
 /.smoke
 relay-data/
-niche-profile/
+lethe-profile/
 node_modules/
 /app/dist
 /app/src-tauri/target

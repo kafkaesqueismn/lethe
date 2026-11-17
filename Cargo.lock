@@ -569,6 +569,86 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
+name = "lethe-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "lethe-client",
+ "rpassword",
+ "tokio",
+]
+
+[[package]]
+name = "lethe-client"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "futures-util",
+ "lethe-crypto",
+ "lethe-proto",
+ "lethe-relay",
+ "postcard",
+ "rustls",
+ "serde",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tokio-socks",
+ "tokio-tungstenite",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
+name = "lethe-crypto"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "chacha20poly1305",
+ "ed25519-dalek",
+ "hkdf",
+ "hmac",
+ "postcard",
+ "rand_core",
+ "serde",
+ "sha2",
+ "thiserror 2.0.21",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
+name = "lethe-proto"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "lethe-crypto",
+ "postcard",
+ "serde",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "lethe-relay"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "futures-util",
+ "lethe-crypto",
+ "lethe-proto",
+ "rcgen",
+ "rustls",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.191"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -619,86 +699,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "niche-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "niche-client",
- "rpassword",
- "tokio",
-]
-
-[[package]]
-name = "niche-client"
-version = "0.1.0"
-dependencies = [
- "base64",
- "futures-util",
- "niche-crypto",
- "niche-proto",
- "niche-relay",
- "postcard",
- "rustls",
- "serde",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-rustls",
- "tokio-socks",
- "tokio-tungstenite",
- "tracing",
- "zeroize",
-]
-
-[[package]]
-name = "niche-crypto"
-version = "0.1.0"
-dependencies = [
- "argon2",
- "chacha20poly1305",
- "ed25519-dalek",
- "hkdf",
- "hmac",
- "postcard",
- "rand_core",
- "serde",
- "sha2",
- "thiserror 2.0.21",
- "x25519-dalek",
- "zeroize",
-]
-
-[[package]]
-name = "niche-proto"
-version = "0.1.0"
-dependencies = [
- "base64",
- "niche-crypto",
- "postcard",
- "serde",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "niche-relay"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "futures-util",
- "niche-crypto",
- "niche-proto",
- "rcgen",
- "rustls",
- "tokio",
- "tokio-rustls",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

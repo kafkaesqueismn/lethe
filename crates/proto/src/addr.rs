@@ -5,7 +5,7 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
 use serde::{Deserialize, Serialize};
 
-/// A relay address: `niche-relay://<base64url sha256(cert)>@host:port`.
+/// A relay address: `lethe-relay://<base64url sha256(cert)>@host:port`.
 ///
 /// The certificate fingerprint is pinned, so there's no reliance on certificate
 /// authorities or DNS: a relay that can't present the matching certificate is rejected.
@@ -17,7 +17,7 @@ pub struct RelayAddr {
 }
 
 #[derive(Debug, thiserror::Error)]
-#[error("invalid relay address (expected niche-relay://<fingerprint>@host:port)")]
+#[error("invalid relay address (expected lethe-relay://<fingerprint>@host:port)")]
 pub struct AddrError;
 
 impl RelayAddr {
@@ -28,7 +28,7 @@ impl RelayAddr {
 
 impl fmt::Display for RelayAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "niche-relay://{}@{}", B64.encode(self.fingerprint), self.host_port())
+        write!(f, "lethe-relay://{}@{}", B64.encode(self.fingerprint), self.host_port())
     }
 }
 
@@ -36,7 +36,7 @@ impl FromStr for RelayAddr {
     type Err = AddrError;
 
     fn from_str(s: &str) -> Result<Self, AddrError> {
-        let rest = s.trim().strip_prefix("niche-relay://").ok_or(AddrError)?;
+        let rest = s.trim().strip_prefix("lethe-relay://").ok_or(AddrError)?;
         let (fp, hostport) = rest.split_once('@').ok_or(AddrError)?;
         let fingerprint: [u8; 32] = B64.decode(fp).map_err(|_| AddrError)?.try_into().map_err(|_| AddrError)?;
         let (host, port) = hostport.rsplit_once(':').ok_or(AddrError)?;
@@ -59,6 +59,6 @@ mod tests {
             assert_eq!(a.to_string().parse::<RelayAddr>().unwrap(), a);
         }
         assert!("http://x@y:1".parse::<RelayAddr>().is_err());
-        assert!("niche-relay://AAAA@host:1".parse::<RelayAddr>().is_err());
+        assert!("lethe-relay://AAAA@host:1".parse::<RelayAddr>().is_err());
     }
 }

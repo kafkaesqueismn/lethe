@@ -11,10 +11,10 @@ license = "AGPL-3.0-or-later"
 rust-version = "1.85"
 
 [workspace.dependencies]
-niche-proto = { path = "crates/proto" }
-niche-crypto = { path = "crates/crypto" }
-niche-client = { path = "crates/client" }
-niche-relay = { path = "crates/relay" }
+lethe-proto = { path = "crates/proto" }
+lethe-crypto = { path = "crates/crypto" }
+lethe-client = { path = "crates/client" }
+lethe-relay = { path = "crates/relay" }
 
 x25519-dalek = { version = "2", features = ["static_secrets"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }

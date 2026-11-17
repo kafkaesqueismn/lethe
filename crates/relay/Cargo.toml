@@ -1,17 +1,17 @@
 [package]
-name = "niche-relay"
-description = "niche relay server: hosts anonymous one-way message queues"
+name = "lethe-relay"
+description = "lethe relay server: hosts anonymous one-way message queues"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "niche-relay"
+name = "lethe-relay"
 path = "src/main.rs"
 
 [dependencies]
-niche-proto.workspace = true
-niche-crypto.workspace = true
+lethe-proto.workspace = true
+lethe-crypto.workspace = true
 tokio.workspace = true
 tokio-tungstenite.workspace = true
 tokio-rustls.workspace = true

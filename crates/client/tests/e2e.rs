@@ -2,12 +2,12 @@
 
 use std::time::Duration;
 
-use niche_client::{Agent, AgentConfig, ContactStatus, Direction, Event, ItemStatus, StoreLocation};
-use niche_relay::{Config, RelayHandle};
+use lethe_client::{Agent, AgentConfig, ContactStatus, Direction, Event, ItemStatus, StoreLocation};
+use lethe_relay::{Config, RelayHandle};
 use tokio::sync::broadcast::Receiver;
 
 async fn relay() -> RelayHandle {
-    niche_relay::start(Config { listen: "127.0.0.1:0".parse().unwrap(), public_host: "127.0.0.1".into(), ..Default::default() })
+    lethe_relay::start(Config { listen: "127.0.0.1:0".parse().unwrap(), public_host: "127.0.0.1".into(), ..Default::default() })
         .await
         .unwrap()
 }
@@ -101,7 +101,7 @@ async fn messages_wait_on_relay_while_offline_and_survive_restart() {
             fast_kdf_for_tests: true,
         })
         .await,
-        Err(niche_client::ClientError::BadPassphrase)
+        Err(lethe_client::ClientError::BadPassphrase)
     ));
 
     let bob = file_agent().await.unwrap();
@@ -152,5 +152,5 @@ async fn wrong_relay_fingerprint_is_rejected() {
     fake.fingerprint[0] ^= 1;
     let alice = agent().await;
     let err = alice.create_invite(&fake, None, None).await.unwrap_err();
-    assert!(matches!(err, niche_client::ClientError::Network(_)), "{err}");
+    assert!(matches!(err, lethe_client::ClientError::Network(_)), "{err}");
 }

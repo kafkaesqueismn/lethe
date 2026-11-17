@@ -1,4 +1,4 @@
-use niche_proto::ErrorCode;
+use lethe_proto::ErrorCode;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ClientError {
@@ -7,7 +7,7 @@ pub enum ClientError {
     #[error("relay rejected command: {0:?}")]
     Relay(ErrorCode),
     #[error("crypto error: {0}")]
-    Crypto(#[from] niche_crypto::CryptoError),
+    Crypto(#[from] lethe_crypto::CryptoError),
     #[error("store error: {0}")]
     Store(String),
     #[error("wrong passphrase or corrupted store")]

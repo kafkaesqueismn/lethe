@@ -1,11 +1,11 @@
-//! Tauri shell around `niche-client`. All crypto and networking stays in Rust; the web
-//! view only gets the commands below and a `niche-event` stream.
+//! Tauri shell around `lethe-client`. All crypto and networking stays in Rust; the web
+//! view only gets the commands below and a `lethe-event` stream.
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Mutex as StdMutex;
 
-use niche_client::{Agent, AgentConfig, ChatItem, ContactInfo, RelayAddr, StoreLocation};
+use lethe_client::{Agent, AgentConfig, ChatItem, ContactInfo, RelayAddr, StoreLocation};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
@@ -39,9 +39,9 @@ struct Invite {
     qr_svg: String,
 }
 
-/// `NICHE_DATA_DIR` lets several profiles run side by side (e.g. testing with two windows).
+/// `LETHE_DATA_DIR` lets several profiles run side by side (e.g. testing with two windows).
 fn data_dir(app: &AppHandle) -> CmdResult<PathBuf> {
-    let dir = match std::env::var_os("NICHE_DATA_DIR") {
+    let dir = match std::env::var_os("LETHE_DATA_DIR") {
         Some(d) => PathBuf::from(d),
         None => app.path().app_data_dir().map_err(err)?,
     };
@@ -49,7 +49,7 @@ fn data_dir(app: &AppHandle) -> CmdResult<PathBuf> {
     Ok(dir)
 }
 
-/// `NICHE_DEFAULT_RELAY` pre-fills the relay when none is configured (set by `run.sh`).
+/// `LETHE_DEFAULT_RELAY` pre-fills the relay when none is configured (set by `run.sh`).
 fn load_settings(app: &AppHandle) -> Settings {
     let mut s: Settings = data_dir(app)
         .ok()
@@ -57,7 +57,7 @@ fn load_settings(app: &AppHandle) -> Settings {
         .and_then(|b| serde_json::from_slice(&b).ok())
         .unwrap_or_default();
     if s.relay.is_none() {
-        s.relay = std::env::var("NICHE_DEFAULT_RELAY").ok().filter(|r| r.parse::<RelayAddr>().is_ok());
+        s.relay = std::env::var("LETHE_DEFAULT_RELAY").ok().filter(|r| r.parse::<RelayAddr>().is_ok());
     }
     s
 }
@@ -90,7 +90,7 @@ fn profile_name(state: &State<'_, AppState>) -> Option<String> {
 
 #[tauri::command]
 fn profile_exists(app: AppHandle) -> CmdResult<bool> {
-    Ok(data_dir(&app)?.join("niche.db").exists())
+    Ok(data_dir(&app)?.join("lethe.db").exists())
 }
 
 #[tauri::command]
@@ -105,7 +105,7 @@ async fn unlock(app: AppHandle, state: State<'_, AppState>, passphrase: String) 
         None => None,
     };
     *state.settings.lock().unwrap() = settings;
-    let path = data_dir(&app)?.join("niche.db");
+    let path = data_dir(&app)?.join("lethe.db");
     let agent = Agent::start(AgentConfig {
         store: StoreLocation::File { path, passphrase },
         socks_proxy,
@@ -121,10 +121,10 @@ async fn unlock(app: AppHandle, state: State<'_, AppState>, passphrase: String) 
         loop {
             match rx.recv().await {
                 Ok(e) => {
-                    let _ = handle.emit("niche-event", &e);
+                    let _ = handle.emit("lethe-event", &e);
                 }
                 Err(RecvError::Lagged(_)) => {
-                    let _ = handle.emit("niche-resync", ());
+                    let _ = handle.emit("lethe-resync", ());
                 }
                 Err(RecvError::Closed) => break,
             }
@@ -233,5 +233,5 @@ pub fn run() {
             delete_contact,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running niche");
+        .expect("error while running lethe");
 }

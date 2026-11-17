@@ -1,4 +1,4 @@
-//! niche client agent.
+//! lethe client agent.
 //!
 //! ```text
 //!   Alice                         relay A            relay B                  Bob
@@ -21,4 +21,4 @@ mod transport;
 pub use agent::{Agent, AgentConfig, Event, StoreLocation};
 pub use error::{ClientError, Result};
 pub use model::{ChatItem, ContactInfo, ContactStatus, Direction, Invitation, ItemStatus};
-pub use niche_proto::RelayAddr;
+pub use lethe_proto::RelayAddr;

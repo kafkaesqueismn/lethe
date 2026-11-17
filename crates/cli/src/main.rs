@@ -2,18 +2,18 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 
 use clap::Parser;
-use niche_client::{Agent, AgentConfig, ChatItem, ContactStatus, Direction, Event, ItemStatus, RelayAddr, StoreLocation};
+use lethe_client::{Agent, AgentConfig, ChatItem, ContactStatus, Direction, Event, ItemStatus, RelayAddr, StoreLocation};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-/// niche: private messaging with no accounts and no identifiers.
+/// lethe: private messaging with no accounts and no identifiers.
 #[derive(Parser)]
 #[command(version)]
 struct Args {
     /// Profile directory (holds the encrypted store).
-    #[arg(long, default_value = "niche-profile")]
+    #[arg(long, default_value = "lethe-profile")]
     profile: PathBuf,
-    /// Relay where your receiving queues are created (niche-relay://...).
-    #[arg(long, env = "NICHE_RELAY")]
+    /// Relay where your receiving queues are created (lethe-relay://...).
+    #[arg(long, env = "LETHE_RELAY")]
     relay: Option<RelayAddr>,
     /// SOCKS5 proxy for all connections, e.g. 127.0.0.1:9050 for Tor.
     #[arg(long)]
@@ -46,8 +46,8 @@ async fn main() -> anyhow::Result<()> {
         StoreLocation::Memory
     } else {
         std::fs::create_dir_all(&args.profile)?;
-        let path = args.profile.join("niche.db");
-        let passphrase = match std::env::var("NICHE_PASSPHRASE") {
+        let path = args.profile.join("lethe.db");
+        let passphrase = match std::env::var("LETHE_PASSPHRASE") {
             Ok(p) => p,
             Err(_) => {
                 let p = rpassword::prompt_password(if path.exists() { "passphrase: " } else { "new passphrase: " })?;
@@ -81,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    println!("niche ready. /help for commands.");
+    println!("lethe ready. /help for commands.");
     let mut open: Option<u64> = None;
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     while let Some(line) = lines.next_line().await? {
@@ -91,7 +91,7 @@ async fn main() -> anyhow::Result<()> {
         }
         let (cmd, rest) = line.split_once(' ').map_or((line, ""), |(a, b)| (a, b.trim()));
         let res: anyhow::Result<()> = async {
-            let relay = || args.relay.clone().ok_or_else(|| anyhow::anyhow!("start with --relay <niche-relay://...> to create queues"));
+            let relay = || args.relay.clone().ok_or_else(|| anyhow::anyhow!("start with --relay <lethe-relay://...> to create queues"));
             let id = |s: &str| s.parse::<u64>().map_err(|_| anyhow::anyhow!("expected a contact id"));
             match cmd {
                 "/help" => println!("{HELP}"),

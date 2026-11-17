@@ -1,4 +1,4 @@
-//! niche relay: an SMP-style server hosting anonymous one-way queues.
+//! lethe relay: an SMP-style server hosting anonymous one-way queues.
 //!
 //! What the relay knows: queue IDs, the public keys authorizing them, and opaque,
 //! fixed-size, end-to-end-encrypted message bodies until they're acknowledged.
@@ -19,9 +19,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures_util::{SinkExt, StreamExt};
-use niche_crypto::primitives::{random_bytes, verify};
-use niche_crypto::DhKeyPair;
-use niche_proto::{
+use lethe_crypto::primitives::{random_bytes, verify};
+use lethe_crypto::DhKeyPair;
+use lethe_proto::{
     delivery, decode_block, encode_block, signed_bytes, ClientFrame, Command, ErrorCode, MsgId, QueueId, RelayAddr,
     Response, ServerFrame, SessionId, BLOCK_SIZE, MAX_BODY, PROTOCOL_VERSION,
 };

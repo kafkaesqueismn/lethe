@@ -13,11 +13,11 @@ use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use niche_crypto::pad::{pad, unpad};
-use niche_crypto::ratchet::{Ratchet, RatchetMessage};
-use niche_crypto::x3dh::{self, InviterKeys};
-use niche_crypto::{DhKeyPair, SigningKeyPair};
-use niche_proto::{delivery, Command, MsgId, QueueId, RelayAddr, Response, E2E_BLOCK};
+use lethe_crypto::pad::{pad, unpad};
+use lethe_crypto::ratchet::{Ratchet, RatchetMessage};
+use lethe_crypto::x3dh::{self, InviterKeys};
+use lethe_crypto::{DhKeyPair, SigningKeyPair};
+use lethe_proto::{delivery, Command, MsgId, QueueId, RelayAddr, Response, E2E_BLOCK};
 use tokio::sync::{broadcast, mpsc, Mutex};
 
 use crate::error::{ClientError, Result};
@@ -222,7 +222,7 @@ impl Agent {
             rt.store.save(&rt.state)?;
             let leave = match (&c.snd, c.ratchet.as_mut()) {
                 (Some(_), Some(r)) if r.can_send() && c.status == ContactStatus::Ready => {
-                    seal_app(r, &AppMsg::Leave).ok().map(|m| niche_proto::to_bytes(&Envelope::Message(m)))
+                    seal_app(r, &AppMsg::Leave).ok().map(|m| lethe_proto::to_bytes(&Envelope::Message(m)))
                 }
                 _ => None,
             };
@@ -443,7 +443,7 @@ impl Inner {
         let Some(mut c) = rt.state.contacts.get(&cid).cloned() else { return Ok(()) };
         let key = delivery::key(&c.rcv.dh.dh(&c.rcv.server_dh)?);
         let env_bytes = delivery::open_body(&key, &msg_id, ts, body)?;
-        let env: Envelope = niche_proto::from_bytes(&env_bytes).map_err(|_| ClientError::Protocol("bad envelope"))?;
+        let env: Envelope = lethe_proto::from_bytes(&env_bytes).map_err(|_| ClientError::Protocol("bad envelope"))?;
 
         let mut events = vec![];
         let mut flush = false;
@@ -528,17 +528,17 @@ async fn push_loop(weak: Weak<Inner>, mut rx: mpsc::UnboundedReceiver<Push>) {
 
 fn enqueue(c: &mut Contact, env: &Envelope, item_id: Option<u64>) {
     let seq = c.outbox.back().map_or(1, |e| e.seq + 1);
-    c.outbox.push_back(OutboxEntry { seq, body: niche_proto::to_bytes(env), item_id });
+    c.outbox.push_back(OutboxEntry { seq, body: lethe_proto::to_bytes(env), item_id });
 }
 
 fn seal_app(ratchet: &mut Ratchet, msg: &AppMsg) -> Result<RatchetMessage> {
-    let padded = pad(&niche_proto::to_bytes(msg), E2E_BLOCK).map_err(|_| ClientError::TooLong)?;
+    let padded = pad(&lethe_proto::to_bytes(msg), E2E_BLOCK).map_err(|_| ClientError::TooLong)?;
     Ok(ratchet.encrypt(&padded))
 }
 
 fn open_app(ratchet: &mut Ratchet, msg: &RatchetMessage) -> Result<AppMsg> {
     let padded = ratchet.decrypt(msg)?;
-    niche_proto::from_bytes(unpad(&padded)?).map_err(|_| ClientError::Protocol("bad message"))
+    lethe_proto::from_bytes(unpad(&padded)?).map_err(|_| ClientError::Protocol("bad message"))
 }
 
 fn now() -> u64 {

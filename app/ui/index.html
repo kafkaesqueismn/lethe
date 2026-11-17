@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>niche</title>
+  <title>lethe</title>
   <link rel="stylesheet" href="style.css">
   <script type="module" src="main.js"></script>
 </head>
@@ -12,7 +12,7 @@
   <section id="lock" class="screen">
     <form id="lock-form" class="lock-card">
       <img src="logo.svg" alt="" class="logo" width="56" height="56">
-      <h1>niche</h1>
+      <h1>lethe</h1>
       <p class="muted" id="lock-hint">Enter your passphrase to unlock.</p>
       <input id="pass" type="password" autocomplete="current-password" placeholder="Passphrase" required>
       <input id="pass2" type="password" autocomplete="new-password" placeholder="Repeat passphrase" hidden>
@@ -26,7 +26,7 @@
   <section id="app" class="screen" hidden>
     <aside id="sidebar">
       <header class="bar">
-        <span class="brand">niche</span>
+        <span class="brand">lethe</span>
         <span class="spacer"></span>
         <button class="icon" id="settings-btn" title="Settings" aria-label="Settings">⚙</button>
         <button class="icon" id="lock-btn" title="Lock" aria-label="Lock">🔒</button>
@@ -81,7 +81,7 @@
   <dialog id="join-dlg">
     <form method="dialog" id="join-form">
       <h2>Join with a link</h2>
-      <textarea id="join-link" rows="4" placeholder="niche://inv#…" required></textarea>
+      <textarea id="join-link" rows="4" placeholder="lethe://inv#…" required></textarea>
       <input id="join-alias" placeholder="Name for this contact (only you see it)">
       <p class="error" id="join-error" role="alert"></p>
       <div class="row">
@@ -96,8 +96,8 @@
     <form method="dialog" id="settings-form">
       <h2>Settings</h2>
       <label>Your relay
-        <input id="set-relay" placeholder="niche-relay://…@host:5223">
-        <span class="fine">Where your incoming queues are created. Run your own with <code>niche-relay</code>.</span>
+        <input id="set-relay" placeholder="lethe-relay://…@host:5223">
+        <span class="fine">Where your incoming queues are created. Run your own with <code>lethe-relay</code>.</span>
       </label>
       <label>Name shown to new contacts
         <input id="set-name" placeholder="(optional, nothing is shared if empty)">

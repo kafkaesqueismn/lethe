@@ -4,15 +4,15 @@ use std::collections::{BTreeMap, VecDeque};
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD as B64;
-use niche_crypto::ratchet::{Ratchet, RatchetMessage};
-use niche_crypto::x3dh::InviterKeys;
-use niche_crypto::{DhKeyPair, SigningKeyPair};
-use niche_proto::{QueueId, RelayAddr};
+use lethe_crypto::ratchet::{Ratchet, RatchetMessage};
+use lethe_crypto::x3dh::InviterKeys;
+use lethe_crypto::{DhKeyPair, SigningKeyPair};
+use lethe_proto::{QueueId, RelayAddr};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ClientError, Result};
 
-pub const INVITE_PREFIX: &str = "niche://inv#";
+pub const INVITE_PREFIX: &str = "lethe://inv#";
 const INVITE_VERSION: u16 = 1;
 
 /// Where to send messages: a relay and a queue's sender ID.
@@ -34,13 +34,13 @@ pub struct Invitation {
 
 impl Invitation {
     pub fn to_link(&self) -> String {
-        format!("{INVITE_PREFIX}{}", B64.encode(niche_proto::to_bytes(self)))
+        format!("{INVITE_PREFIX}{}", B64.encode(lethe_proto::to_bytes(self)))
     }
 
     pub fn from_link(link: &str) -> Result<Self> {
         let data = link.trim().strip_prefix(INVITE_PREFIX).ok_or(ClientError::InvalidLink)?;
         let bytes = B64.decode(data).map_err(|_| ClientError::InvalidLink)?;
-        let inv: Self = niche_proto::from_bytes(&bytes).map_err(|_| ClientError::InvalidLink)?;
+        let inv: Self = lethe_proto::from_bytes(&bytes).map_err(|_| ClientError::InvalidLink)?;
         if inv.version != INVITE_VERSION {
             return Err(ClientError::InvalidLink);
         }
@@ -197,7 +197,7 @@ mod tests {
         let link = inv.to_link();
         assert!(link.starts_with(INVITE_PREFIX));
         assert_eq!(Invitation::from_link(&link).unwrap(), inv);
-        assert!(Invitation::from_link("niche://inv#garbage!").is_err());
+        assert!(Invitation::from_link("lethe://inv#garbage!").is_err());
         assert!(Invitation::from_link("https://example.com").is_err());
     }
 }

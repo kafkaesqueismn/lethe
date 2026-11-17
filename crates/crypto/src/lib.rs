@@ -1,4 +1,4 @@
-//! Cryptographic core of niche.
+//! Cryptographic core of lethe.
 //!
 //! Everything here composes audited RustCrypto / dalek primitives; no primitive is
 //! implemented by hand. The protocol pieces are:
