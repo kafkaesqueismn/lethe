@@ -99,3 +99,7 @@ cd app/src-tauri && cargo tauri android init && cargo tauri android dev
 ```
 
 Background delivery on mobile is still an open design question. Polling keeps the most privacy; push notifications would need a push relay that learns some metadata.
+
+## License
+
+[GNU AGPL-3.0-or-later](LICENSE). You can use, study, modify and share lethe freely. If you distribute a modified version, or run a modified relay as a network service, you must publish its source under the same license.
