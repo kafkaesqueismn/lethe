@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>niche</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <!-- Lock screen -->
+  <section id="lock" class="screen">
+    <form id="lock-form" class="lock-card">
+      <img src="logo.svg" alt="" class="logo" width="56" height="56">
+      <h1>niche</h1>
+      <p class="muted" id="lock-hint">Enter your passphrase to unlock.</p>
+      <input id="pass" type="password" autocomplete="current-password" placeholder="Passphrase" required>
+      <input id="pass2" type="password" autocomplete="new-password" placeholder="Repeat passphrase" hidden>
+      <button type="submit" class="primary" id="unlock-btn">Unlock</button>
+      <p class="error" id="lock-error" role="alert"></p>
+      <p class="fine">No account, phone number or email. Your profile exists only on this device, encrypted with this passphrase. If you forget it, the data can't be recovered.</p>
+    </form>
+  </section>
+
+  <!-- Main app -->
+  <section id="app" class="screen" hidden>
+    <aside id="sidebar">
+      <header class="bar">
+        <span class="brand">niche</span>
+        <span class="spacer"></span>
+        <button class="icon" id="settings-btn" title="Settings" aria-label="Settings">⚙</button>
+        <button class="icon" id="lock-btn" title="Lock" aria-label="Lock">🔒</button>
+      </header>
+      <div class="actions">
+        <button class="primary" id="invite-btn">+ Invite</button>
+        <button id="join-btn">Join with link</button>
+      </div>
+      <ul id="contact-list" aria-label="Contacts"></ul>
+      <p id="relay-status" class="fine"></p>
+    </aside>
+
+    <main id="chat">
+      <div id="empty" class="empty">
+        <p>Pick a conversation, or invite someone.</p>
+        <p class="fine">Each contact is a pair of anonymous one-way queues. The relays can't tell who you are or who you talk to.</p>
+      </div>
+      <div id="conversation" hidden>
+        <header class="bar">
+          <button class="icon back" id="back-btn" aria-label="Back">←</button>
+          <div class="who">
+            <strong id="chat-name"></strong>
+            <span id="chat-status" class="fine"></span>
+          </div>
+          <span class="spacer"></span>
+          <button class="icon" id="show-link-btn" title="Show invitation" aria-label="Show invitation" hidden>⧉</button>
+          <button class="icon" id="rename-btn" title="Rename" aria-label="Rename">✎</button>
+          <button class="icon danger" id="delete-btn" title="Delete contact" aria-label="Delete contact">🗑</button>
+        </header>
+        <ol id="messages" aria-live="polite"></ol>
+        <form id="composer">
+          <textarea id="text" rows="1" placeholder="Message" maxlength="14000"></textarea>
+          <button type="submit" class="primary" aria-label="Send">Send</button>
+        </form>
+      </div>
+    </main>
+  </section>
+
+  <!-- Dialogs -->
+  <dialog id="invite-dlg">
+    <h2>One-time invitation</h2>
+    <p class="fine">Share this privately: show the QR code in person, or send the link over a channel you trust. It works once.</p>
+    <img id="qr" alt="Invitation QR code">
+    <textarea id="invite-link" readonly rows="3"></textarea>
+    <div class="row">
+      <button id="copy-link">Copy link</button>
+      <span class="spacer"></span>
+      <button class="primary" data-close>Done</button>
+    </div>
+  </dialog>
+
+  <dialog id="join-dlg">
+    <form method="dialog" id="join-form">
+      <h2>Join with a link</h2>
+      <textarea id="join-link" rows="4" placeholder="niche://inv#…" required></textarea>
+      <input id="join-alias" placeholder="Name for this contact (only you see it)">
+      <p class="error" id="join-error" role="alert"></p>
+      <div class="row">
+        <button type="button" data-close>Cancel</button>
+        <span class="spacer"></span>
+        <button class="primary" type="submit">Connect</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dlg">
+    <form method="dialog" id="settings-form">
+      <h2>Settings</h2>
+      <label>Your relay
+        <input id="set-relay" placeholder="niche-relay://…@host:5223">
+        <span class="fine">Where your incoming queues are created. Run your own with <code>niche-relay</code>.</span>
+      </label>
+      <label>Name shown to new contacts
+        <input id="set-name" placeholder="(optional, nothing is shared if empty)">
+      </label>
+      <label>SOCKS5 proxy (Tor)
+        <input id="set-proxy" placeholder="127.0.0.1:9050">
+        <span class="fine">Takes effect next time you unlock.</span>
+      </label>
+      <p class="error" id="settings-error" role="alert"></p>
+      <div class="row">
+        <button type="button" data-close>Cancel</button>
+        <span class="spacer"></span>
+        <button class="primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

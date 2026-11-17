@@ -1,0 +1,9 @@
+/target
+/.smoke
+relay-data/
+niche-profile/
+node_modules/
+/app/dist
+/app/src-tauri/target
+/app/src-tauri/gen
+/.dev

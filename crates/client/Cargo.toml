@@ -1,0 +1,26 @@
+[package]
+name = "niche-client"
+description = "niche client agent: contacts, queues, end-to-end encryption, encrypted local store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+niche-proto.workspace = true
+niche-crypto.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tokio-rustls.workspace = true
+rustls.workspace = true
+tokio-socks.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+postcard.workspace = true
+base64.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+niche-relay.workspace = true
+tempfile.workspace = true

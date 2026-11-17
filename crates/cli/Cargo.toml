@@ -1,0 +1,17 @@
+[package]
+name = "niche-cli"
+description = "Terminal client for niche (development and power users)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "niche"
+path = "src/main.rs"
+
+[dependencies]
+niche-client.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+rpassword.workspace = true
