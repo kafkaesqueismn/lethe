@@ -1,7 +1,7 @@
 //! Tauri shell around `lethe-client`. All crypto and networking stays in Rust; the web
 //! view only gets the commands below and a `lethe-event` stream.
 
-use std::net::SocketAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Mutex as StdMutex;
 
@@ -25,13 +25,20 @@ struct Settings {
     profile_name: Option<String>,
     /// Lock after this many idle minutes; 0 = never. `None` = default (5).
     auto_lock_minutes: Option<u32>,
+    /// Run a relay inside the app (started at launch, so it's up even while locked).
+    #[serde(default)]
+    host_relay: bool,
 }
 
 #[derive(Default)]
 struct AppState {
     agent: Mutex<Option<Agent>>,
     settings: StdMutex<Settings>,
+    local_relay: Mutex<Option<lethe_relay::RelayHandle>>,
 }
+
+/// Fixed so the relay's address (and every contact that uses it) survives restarts.
+const LOCAL_RELAY_PORT: u16 = 5223;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +69,48 @@ fn load_settings(app: &AppHandle) -> Settings {
         s.relay = std::env::var("LETHE_DEFAULT_RELAY").ok().filter(|r| r.parse::<RelayAddr>().is_ok());
     }
     s
+}
+
+fn save_settings(app: &AppHandle, state: &AppState, settings: Settings) -> CmdResult<()> {
+    let json = serde_json::to_vec_pretty(&settings).map_err(err)?;
+    std::fs::write(data_dir(app)?.join("settings.json"), json).map_err(err)?;
+    *state.settings.lock().unwrap() = settings;
+    Ok(())
+}
+
+/// This machine's address on the local network, so other devices on the same Wi-Fi can
+/// reach a relay hosted here. `connect` on a UDP socket only picks a route; nothing is sent.
+fn lan_ip() -> Option<IpAddr> {
+    let s = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    s.connect("192.0.2.1:9").ok()?; // TEST-NET-1, never actually contacted
+    let ip = s.local_addr().ok()?.ip();
+    (!ip.is_loopback() && !ip.is_unspecified()).then_some(ip)
+}
+
+/// Start the in-app relay if it isn't running. Returns its address.
+async fn ensure_local_relay(app: &AppHandle, state: &AppState) -> CmdResult<String> {
+    let mut slot = state.local_relay.lock().await;
+    if let Some(h) = slot.as_ref() {
+        return Ok(h.addr.to_string());
+    }
+    let host = lan_ip().map_or_else(|| "127.0.0.1".to_string(), |ip| ip.to_string());
+    let handle = lethe_relay::start(lethe_relay::Config {
+        listen: SocketAddr::from(([0, 0, 0, 0], LOCAL_RELAY_PORT)),
+        public_host: host,
+        data_dir: Some(data_dir(app)?.join("relay")),
+        ..Default::default()
+    })
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("in use") {
+            format!("Port {LOCAL_RELAY_PORT} is already in use. Is another lethe relay running (for example ./run.sh)? Stop it, or paste that relay's address instead.")
+        } else {
+            format!("Couldn't start the relay: {e}")
+        }
+    })?;
+    let addr = handle.addr.to_string();
+    *slot = Some(handle);
+    Ok(addr)
 }
 
 fn qr_svg(link: &str) -> CmdResult<String> {
@@ -156,11 +205,13 @@ fn get_settings(app: AppHandle, state: State<'_, AppState>) -> Settings {
 #[tauri::command]
 fn set_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) -> CmdResult<()> {
     let clean = |o: Option<String>| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+    let host_relay = state.settings.lock().unwrap().host_relay;
     let settings = Settings {
         relay: clean(settings.relay),
         socks_proxy: clean(settings.socks_proxy),
         profile_name: clean(settings.profile_name),
         auto_lock_minutes: settings.auto_lock_minutes.map(|m| m.min(24 * 60)),
+        host_relay,
     };
     if let Some(r) = &settings.relay {
         r.parse::<RelayAddr>().map_err(err)?;
@@ -168,10 +219,35 @@ fn set_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) 
     if let Some(p) = &settings.socks_proxy {
         p.parse::<SocketAddr>().map_err(|_| "proxy must look like 127.0.0.1:9050")?;
     }
-    let json = serde_json::to_vec_pretty(&settings).map_err(err)?;
-    std::fs::write(data_dir(&app)?.join("settings.json"), json).map_err(err)?;
-    *state.settings.lock().unwrap() = settings;
-    Ok(())
+    save_settings(&app, &state, settings)
+}
+
+/// Start hosting a relay in the app and use it for new conversations.
+#[tauri::command]
+async fn host_local_relay(app: AppHandle, state: State<'_, AppState>) -> CmdResult<Settings> {
+    let addr = ensure_local_relay(&app, &state).await?;
+    let mut s = load_settings(&app);
+    s.relay = Some(addr);
+    s.host_relay = true;
+    save_settings(&app, &state, s.clone())?;
+    Ok(s)
+}
+
+#[tauri::command]
+async fn stop_local_relay(app: AppHandle, state: State<'_, AppState>) -> CmdResult<Settings> {
+    if let Some(h) = state.local_relay.lock().await.take() {
+        h.shutdown();
+    }
+    let mut s = load_settings(&app);
+    s.host_relay = false;
+    save_settings(&app, &state, s.clone())?;
+    Ok(s)
+}
+
+/// Address of the relay this app is hosting, if any.
+#[tauri::command]
+async fn local_relay_address(state: State<'_, AppState>) -> CmdResult<Option<String>> {
+    Ok(state.local_relay.lock().await.as_ref().map(|h| h.addr.to_string()))
 }
 
 #[tauri::command]
@@ -236,7 +312,32 @@ pub fn run() {
             send_text,
             rename_contact,
             delete_contact,
+            host_local_relay,
+            stop_local_relay,
+            local_relay_address,
         ])
+        .setup(|app| {
+            // Bring the hosted relay up at launch, before unlock, so contacts can
+            // deliver to it while the profile is locked.
+            let handle = app.handle().clone();
+            if load_settings(&handle).host_relay {
+                tauri::async_runtime::spawn(async move {
+                    let state = handle.state::<AppState>();
+                    match ensure_local_relay(&handle, state.inner()).await {
+                        Ok(addr) => {
+                            // The LAN address may have changed since last time.
+                            let mut s = load_settings(&handle);
+                            if s.relay.as_deref() != Some(addr.as_str()) {
+                                s.relay = Some(addr);
+                                let _ = save_settings(&handle, state.inner(), s);
+                            }
+                        }
+                        Err(e) => eprintln!("lethe: hosted relay didn't start: {e}"),
+                    }
+                });
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running lethe");
 }

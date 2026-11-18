@@ -24,6 +24,8 @@
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
       <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></symbol>
+      <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
+      <symbol id="i-paste" viewBox="0 0 24 24"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z"/><path d="M16 5h2a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h2"/></symbol>
       <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
     </defs>
   </svg>
@@ -150,14 +152,39 @@
     </form>
   </dialog>
 
+  <dialog id="relay-dlg">
+    <header class="dlg-head"><h2>Set up a relay</h2><button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></header>
+    <p class="dlg-sub">Messages travel through a <strong>relay</strong>: a small server that holds encrypted messages until they're picked up. It can't read them and never learns who you are. You need one before you can invite or join anyone.</p>
+    <button type="button" class="choice" id="relay-host">
+      <span class="choice-icon"><svg><use href="#i-server"/></svg></span>
+      <span class="choice-body"><strong>Host one on this computer</strong><small>Easiest. Works for people on your Wi-Fi. Messages only flow while lethe is open here.</small></span>
+    </button>
+    <form class="choice paste" id="relay-paste-form">
+      <span class="choice-icon"><svg><use href="#i-paste"/></svg></span>
+      <span class="choice-body">
+        <strong>Use a relay address</strong>
+        <small>From a friend, or a server you run with <code>lethe-relay</code>.</small>
+        <span class="paste-row">
+          <input id="relay-paste" placeholder="lethe-relay://…" spellcheck="false" aria-label="Relay address">
+          <button class="btn primary" type="submit">Use</button>
+        </span>
+      </span>
+    </form>
+    <p class="error" id="relay-error" role="alert"></p>
+  </dialog>
+
   <dialog id="settings-dlg">
     <form id="settings-form">
       <header class="dlg-head"><h2>Settings</h2><button type="button" class="icon-btn" data-close aria-label="Close"><svg><use href="#i-x"/></svg></button></header>
       <label class="field">
         <span>Your relay</span>
         <input id="set-relay" placeholder="lethe-relay://…@host:5223" spellcheck="false">
-        <small>Where your incoming queues are created. Run your own with <code>lethe-relay</code>.</small>
+        <small>Where your incoming messages wait for you. Run your own with <code>lethe-relay</code>, or host one in this app.</small>
       </label>
+      <div class="host-row">
+        <div class="host-info"><span class="dot" id="host-dot"></span><span id="host-text">Not hosting a relay</span></div>
+        <button type="button" class="btn small" id="host-toggle">Host on this computer</button>
+      </div>
       <label class="field">
         <span>Name shown to new contacts</span>
         <input id="set-name" placeholder="Optional. Nothing is shared if empty.">

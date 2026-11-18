@@ -101,7 +101,7 @@ $("lock-form").addEventListener("submit", async (e) => {
     await loadSettings();
     await refreshContacts();
     touch();
-    if (!settings.relay) openSettings();
+    if (!settings.relay) openRelaySetup();
   } catch (err) {
     lockError(String(err).includes("passphrase") ? "Wrong passphrase." : String(err));
     $("pass").select();
@@ -393,10 +393,7 @@ function showInvite(inv) {
 }
 
 async function newInvite() {
-  if (!settings.relay) {
-    toast("Set your relay first.", true);
-    return openSettings();
-  }
+  if (!settings.relay) return openRelaySetup(newInvite);
   try {
     const inv = await invoke("create_invite", { alias: null });
     await refreshContacts();
@@ -418,6 +415,7 @@ $("copy-link").addEventListener("click", async () => {
 });
 
 function openJoin() {
+  if (!settings.relay) return openRelaySetup(openJoin);
   $("join-link").value = $("join-alias").value = $("join-error").textContent = "";
   $("join-dlg").showModal();
 }
@@ -440,6 +438,54 @@ $("join-form").addEventListener("submit", async (e) => {
   }
 });
 
+// ============ relay setup ============
+// Shown whenever something needs a relay and none is set, instead of dumping the user
+// into Settings. `then` resumes what they were doing (e.g. creating an invite).
+let afterRelay = null;
+
+function openRelaySetup(then = null) {
+  afterRelay = then;
+  $("relay-paste").value = "";
+  $("relay-error").textContent = "";
+  $("relay-host").disabled = false;
+  $("relay-dlg").showModal();
+}
+
+async function relayReady(message) {
+  await loadSettings();
+  $("relay-dlg").close();
+  toast(message);
+  const next = afterRelay;
+  afterRelay = null;
+  if (next) next();
+}
+
+$("relay-host").addEventListener("click", async () => {
+  $("relay-host").disabled = true;
+  $("relay-error").textContent = "";
+  try {
+    await invoke("host_local_relay");
+    await relayReady("Relay running on this computer");
+  } catch (err) {
+    $("relay-error").textContent = String(err);
+    $("relay-host").disabled = false;
+  }
+});
+
+$("relay-paste-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const relay = $("relay-paste").value.trim();
+  if (!relay) return ($("relay-error").textContent = "Paste a relay address first.");
+  try {
+    await invoke("set_settings", { settings: { ...settings, relay } });
+    await relayReady("Relay saved");
+  } catch (err) {
+    $("relay-error").textContent = String(err).includes("relay address")
+      ? "That doesn't look like a relay address. It should start with lethe-relay://"
+      : String(err);
+  }
+});
+
 // ============ settings ============
 async function loadSettings() {
   settings = await invoke("get_settings");
@@ -451,8 +497,39 @@ function openSettings() {
   $("set-proxy").value = settings.socksProxy ?? "";
   $("set-autolock").value = String(settings.autoLockMinutes ?? 5);
   $("settings-error").textContent = "";
+  refreshHostRow();
   $("settings-dlg").showModal();
 }
+
+async function refreshHostRow() {
+  const addr = await invoke("local_relay_address");
+  $("host-dot").classList.toggle("on", !!addr);
+  $("host-text").textContent = addr ? "This computer is hosting a relay" : "Not hosting a relay";
+  $("host-toggle").textContent = addr ? "Stop hosting" : "Host on this computer";
+  $("host-toggle").dataset.on = addr ? "1" : "";
+}
+
+$("host-toggle").addEventListener("click", async () => {
+  const on = !!$("host-toggle").dataset.on;
+  if (on) {
+    const ok = await confirmDialog(
+      "Stop hosting the relay?",
+      "Conversations that use this relay stop receiving messages until you host it again.",
+      "Stop hosting",
+    );
+    if (!ok) return;
+    await invoke("stop_local_relay");
+  } else {
+    try {
+      const s = await invoke("host_local_relay");
+      $("set-relay").value = s.relay ?? "";
+    } catch (err) {
+      $("settings-error").textContent = String(err);
+    }
+  }
+  await loadSettings();
+  refreshHostRow();
+});
 $("settings-btn").addEventListener("click", openSettings);
 
 $("settings-form").addEventListener("submit", async (e) => {
