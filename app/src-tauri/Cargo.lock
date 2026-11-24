@@ -2375,7 +2375,7 @@ checksum = "20870f649af7073d53e38067b2a84312175d56ea15217e1b15bc83506ec50afb"
 
 [[package]]
 name = "lethe-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lethe-client",
  "lethe-relay",
@@ -2390,7 +2390,7 @@ dependencies = [
 
 [[package]]
 name = "lethe-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "ciborium",
@@ -2411,7 +2411,7 @@ dependencies = [
 
 [[package]]
 name = "lethe-crypto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "chacha20poly1305",
@@ -2429,7 +2429,7 @@ dependencies = [
 
 [[package]]
 name = "lethe-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "lethe-crypto",
@@ -2440,7 +2440,7 @@ dependencies = [
 
 [[package]]
 name = "lethe-relay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",

@@ -8,6 +8,17 @@ A private messenger with **no user identifiers at all**: no accounts, phone numb
 >
 > ⚠️ The cryptography has **not** been independently audited. Please don't rely on it where your safety is at stake.
 
+## Features
+
+- **No identifiers:** no account, phone number, email or username. You connect with a one-time invite (QR code or link).
+- **End-to-end encrypted** messages, photos and files (up to 10 MB), with forward secrecy.
+- **Disappearing messages** per conversation, erased on both devices.
+- **Delete for everyone**, plus delivered and read ticks (read receipts can be turned off).
+- **Security codes** to check in person that nobody intercepted your invite.
+- **Passphrase-locked profile** with auto-lock. Everything at rest is encrypted, attachments included.
+- **Relays:** host one inside the app with one click, run `lethe-relay` on a server, or use a friend's. Optional Tor.
+- **Desktop notifications** at the privacy level you choose, down to a plain "New message".
+
 ## How it works
 
 ```
@@ -34,10 +45,7 @@ A private messenger with **no user identifiers at all**: no accounts, phone numb
 
 What a relay sees: queue IDs, the public keys authorizing them, timing, and opaque fixed-size blobs until they're acknowledged. It never logs client IPs. Invitations are **one-time**: once the first person connects, the queue is locked to their key.
 
-Known gaps, tracked for later:
-- The ratchet header isn't encrypted yet.
-- There's no queue rotation yet.
-- There are no groups or file transfer yet.
+Known gaps are tracked in [ROADMAP.md](ROADMAP.md). The biggest: ratchet headers aren't encrypted yet, queues aren't rotated yet, and there are no group chats.
 
 ## Layout
 
@@ -64,6 +72,24 @@ Pre-built installers are on the [Releases page](https://github.com/kafkaesqueism
 | **iOS** | Not yet. Building for iOS needs a Mac with Xcode, and installing on other people's phones needs an Apple Developer account. |
 
 **Every device needs to reach the same relay.** A relay on `127.0.0.1` only works on that one computer. To test between your PC and phone on the same Wi-Fi, run `lethe-relay --listen 0.0.0.0:5223 --host <your PC's LAN IP>` and use the address it prints. For real use, run it on a server with a public address.
+
+## Run a public relay
+
+For people outside your Wi-Fi to reach you, you need a relay with a public address. A small VPS is plenty: the relay uses a few MB of RAM, and it keeps waiting messages on disk so restarts don't lose them.
+
+```sh
+# on the server (Debian/Ubuntu shown; any Linux works)
+cargo build --release -p lethe-relay            # or copy the binary over
+sudo install -m755 target/release/lethe-relay /usr/local/bin/
+sudo useradd --system --home /var/lib/lethe-relay --create-home lethe-relay
+sudo cp deploy/lethe-relay.service /etc/systemd/system/
+sudo sed -i 's/YOUR_PUBLIC_HOST/relay.example.org/' /etc/systemd/system/lethe-relay.service
+sudo systemctl enable --now lethe-relay
+sudo ufw allow 5223/tcp                           # if you use a firewall
+journalctl -u lethe-relay | grep lethe-relay://  # the address to paste into the app
+```
+
+The address includes the relay's certificate fingerprint, so you don't need a domain or a TLS certificate: an IP address works. The identity lives in `/var/lib/lethe-relay`. Keep it, or the address changes and existing conversations on that relay stop working.
 
 ## Running it (development)
 

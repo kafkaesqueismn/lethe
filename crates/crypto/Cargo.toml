@@ -16,5 +16,7 @@ rand_core.workspace = true
 zeroize.workspace = true
 argon2.workspace = true
 serde.workspace = true
-postcard.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+postcard.workspace = true

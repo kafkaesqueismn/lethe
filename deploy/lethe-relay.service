@@ -1,0 +1,34 @@
+# systemd unit for a public lethe relay.
+# Replace YOUR_PUBLIC_HOST with the hostname or IP clients will use.
+[Unit]
+Description=lethe relay (anonymous message queues)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=lethe-relay
+Group=lethe-relay
+ExecStart=/usr/local/bin/lethe-relay --listen 0.0.0.0:5223 --host YOUR_PUBLIC_HOST --data-dir /var/lib/lethe-relay
+Restart=on-failure
+RestartSec=3
+
+# Hardening: the relay only needs its own data directory and the network.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lethe-relay
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
