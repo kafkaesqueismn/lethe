@@ -1,4 +1,7 @@
 //! Persistent client state and the messages carried inside queues.
+//!
+//! Stored state is CBOR (self-describing), and every field added after v0.1 carries
+//! `#[serde(default)]`, so new versions can open profiles written by older ones.
 
 use std::collections::{BTreeMap, VecDeque};
 
@@ -13,6 +16,10 @@ use serde::{Deserialize, Serialize};
 use crate::error::{ClientError, Result};
 
 pub const INVITE_PREFIX: &str = "lethe://inv#";
+/// Bytes of file data per chunk message (fits in one padded E2E block with framing).
+pub const CHUNK_SIZE: usize = 15_000;
+/// Largest file that can be sent.
+pub const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
 const INVITE_VERSION: u16 = 1;
 
 /// Where to send messages: a relay and a queue's sender ID.
@@ -66,9 +73,19 @@ pub(crate) enum AppMsg {
     /// Connection setup: the key the peer should `KEY` onto its queue, and (from the
     /// joiner) the queue to reply on. `profile_name` is optional and per-contact.
     ConnInfo { sender_key: [u8; 32], reply_queue: Option<QueueAddr>, profile_name: Option<String> },
-    Text { text: String, sent_at: u64 },
+    /// `id` is the sender's item id; receipts and deletes refer to it.
+    Text { id: u64, text: String, sent_at: u64, ttl: Option<u32> },
     /// The peer deleted this contact.
     Leave,
+    /// The peer's device got (`read == false`) or showed (`read == true`) our items `ids`.
+    Receipt { ids: Vec<u64>, read: bool },
+    /// Delete-for-everyone of the sender's own items `ids`.
+    Delete { ids: Vec<u64> },
+    /// Disappearing-messages timer for this conversation, in seconds (`None` = off).
+    SetTimer { ttl: Option<u32> },
+    /// File announcement; `chunks` `Chunk` messages with the data follow in order.
+    File { id: u64, name: String, mime: String, size: u64, chunks: u32, sha256: [u8; 32], caption: String, sent_at: u64, ttl: Option<u32> },
+    Chunk { file_id: u64, index: u32, data: Vec<u8> },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -88,9 +105,18 @@ pub(crate) struct SndQueue {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+pub(crate) enum Payload {
+    /// Already ratchet-encrypted and persisted; safe to (re)send as is.
+    Sealed(Vec<u8>),
+    /// A file chunk that is encrypted only when it reaches the front of the outbox,
+    /// so a 10 MB file doesn't sit in the store as hundreds of sealed blocks.
+    Chunk { index: u32, total: u32 },
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct OutboxEntry {
     pub seq: u64,
-    pub body: Vec<u8>,
+    pub payload: Payload,
     pub item_id: Option<u64>,
 }
 
@@ -119,6 +145,45 @@ pub enum ItemStatus {
     Sent,
     Failed,
     Received,
+    /// The contact's device received it.
+    Delivered,
+    /// The contact opened the conversation and saw it (if they share read receipts).
+    Read,
+}
+
+impl ItemStatus {
+    /// Ordering for sent items, so a late "delivered" never downgrades "read".
+    pub(crate) fn rank(self) -> u8 {
+        match self {
+            ItemStatus::Failed => 0,
+            ItemStatus::Pending => 1,
+            ItemStatus::Sent => 2,
+            ItemStatus::Delivered => 3,
+            ItemStatus::Read => 4,
+            ItemStatus::Received => 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileState {
+    Transferring,
+    Ready,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Attachment {
+    pub name: String,
+    pub mime: String,
+    pub size: u64,
+    pub chunks: u32,
+    /// Chunks sent or received so far.
+    pub done: u32,
+    pub state: FileState,
+    #[serde(default)]
+    pub sha256: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -130,6 +195,49 @@ pub struct ChatItem {
     /// Unix seconds. For received items, the sender's claimed time.
     pub ts: u64,
     pub status: ItemStatus,
+    /// For received items: the sender's id for it (receipts/deletes refer to this).
+    #[serde(default)]
+    pub remote_id: Option<u64>,
+    /// Disappearing messages: Unix time when it erases itself.
+    #[serde(default)]
+    pub expires_at: Option<u64>,
+    #[serde(default)]
+    pub attachment: Option<Attachment>,
+    /// A notice in the conversation ("disappearing messages turned on") rather than a message.
+    #[serde(default)]
+    pub system: bool,
+    /// For received items: whether you've seen it.
+    #[serde(default)]
+    pub read: bool,
+}
+
+impl ChatItem {
+    pub(crate) fn new(id: u64, direction: Direction, text: String, ts: u64, status: ItemStatus) -> Self {
+        Self { id, direction, text, ts, status, remote_id: None, expires_at: None, attachment: None, system: false, read: direction == Direction::Sent }
+    }
+
+    pub(crate) fn notice(id: u64, text: String) -> Self {
+        Self { system: true, read: true, ..Self::new(id, Direction::Received, text, now(), ItemStatus::Received) }
+    }
+}
+
+pub(crate) fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+/// Human wording for a timer, used in conversation notices.
+pub(crate) fn describe_ttl(ttl: Option<u32>) -> String {
+    match ttl {
+        None => "off".into(),
+        Some(s) if s % 86_400 == 0 => plural(s / 86_400, "day"),
+        Some(s) if s % 3_600 == 0 => plural(s / 3_600, "hour"),
+        Some(s) if s % 60 == 0 => plural(s / 60, "minute"),
+        Some(s) => plural(s, "second"),
+    }
+}
+
+fn plural(n: u32, unit: &str) -> String {
+    if n == 1 { format!("1 {unit}") } else { format!("{n} {unit}s") }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -146,6 +254,9 @@ pub(crate) struct Contact {
     pub outbox: VecDeque<OutboxEntry>,
     pub items: Vec<ChatItem>,
     pub created_at: u64,
+    /// Disappearing-messages timer (seconds) agreed for this conversation.
+    #[serde(default)]
+    pub timer: Option<u32>,
 }
 
 impl Contact {
@@ -165,11 +276,23 @@ pub struct ContactInfo {
     pub status: ContactStatus,
     pub last_item: Option<ChatItem>,
     pub relay: RelayAddr,
+    pub unread: u32,
+    pub timer: Option<u32>,
+    pub created_at: u64,
 }
 
 impl From<&Contact> for ContactInfo {
     fn from(c: &Contact) -> Self {
-        Self { id: c.id, name: c.display_name(), status: c.status, last_item: c.items.last().cloned(), relay: c.rcv.relay.clone() }
+        Self {
+            id: c.id,
+            name: c.display_name(),
+            status: c.status,
+            last_item: c.items.iter().rev().find(|i| !i.system).or(c.items.last()).cloned(),
+            relay: c.rcv.relay.clone(),
+            unread: c.items.iter().filter(|i| !i.read && !i.system).count() as u32,
+            timer: c.timer,
+            created_at: c.created_at,
+        }
     }
 }
 

@@ -12,6 +12,10 @@ pub enum ClientError {
     Store(String),
     #[error("wrong passphrase or corrupted store")]
     BadPassphrase,
+    #[error("this profile was made by an older lethe prototype and can't be opened; reset it to start fresh")]
+    OldStore,
+    #[error("file is too large (max 10 MB)")]
+    FileTooLarge,
     #[error("invalid invitation link")]
     InvalidLink,
     #[error("no such contact")]

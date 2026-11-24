@@ -192,3 +192,89 @@ async fn relay_restart_keeps_undelivered_messages() {
     let Event::Message { contact_id, item } = wait_for(&mut b_ev, |e| matches!(e, Event::Message { .. })).await else { unreachable!() };
     assert_eq!((contact_id, item.text.as_str()), (b_cid, "survives a relay restart"));
 }
+
+#[tokio::test]
+async fn receipts_files_deletes_and_disappearing_messages() {
+    let r = relay().await;
+    let (alice, bob) = (agent().await, agent().await);
+    let (a_cid, b_cid) = connect(&alice, &r, &bob, &r).await;
+    let (mut a_ev, mut b_ev) = (alice.subscribe(), bob.subscribe());
+
+    // Delivered, then read receipts.
+    let sent = alice.send_text(a_cid, "did you get this?").await.unwrap();
+    wait_for(&mut a_ev, |e| matches!(e, Event::ItemStatus { item_id, status: ItemStatus::Delivered, .. } if *item_id == sent.id)).await;
+    assert_eq!(bob.contacts().await[0].unread, 1);
+    bob.mark_read(b_cid, true).await.unwrap();
+    assert_eq!(bob.contacts().await[0].unread, 0);
+    wait_for(&mut a_ev, |e| matches!(e, Event::ItemStatus { item_id, status: ItemStatus::Read, .. } if *item_id == sent.id)).await;
+
+    // A multi-chunk file arrives intact and is stored decrypted only on request.
+    let data: Vec<u8> = (0..(lethe_client::CHUNK_SIZE * 3 + 123)).map(|i| (i * 7 % 251) as u8).collect();
+    let item = alice.send_file(a_cid, "../holiday.jpg", "image/jpeg", data.clone(), "look").await.unwrap();
+    assert_eq!(item.attachment.as_ref().unwrap().chunks, 4);
+    let Event::ItemUpdated { item: got, .. } = wait_for(&mut b_ev, |e| {
+        matches!(e, Event::ItemUpdated { item, .. } if item.attachment.as_ref().is_some_and(|a| a.state == lethe_client::FileState::Ready))
+    })
+    .await
+    else {
+        unreachable!()
+    };
+    assert_eq!(got.text, "look");
+    let (name, mime, bytes) = bob.file_data(b_cid, got.id).await.unwrap();
+    assert_eq!((name.as_str(), mime.as_str()), ("holiday.jpg", "image/jpeg"), "path components stripped");
+    assert_eq!(bytes, data);
+    assert!(alice.send_file(a_cid, "big.bin", "application/octet-stream", vec![0; 11 * 1024 * 1024], "").await.is_err());
+
+    // Delete for everyone removes it on Bob's side too.
+    let oops = alice.send_text(a_cid, "oops, wrong chat").await.unwrap();
+    wait_for(&mut b_ev, |e| matches!(e, Event::Message { item, .. } if item.text == "oops, wrong chat")).await;
+    alice.delete_items(a_cid, &[oops.id], true).await.unwrap();
+    wait_for(&mut b_ev, |e| matches!(e, Event::ItemsRemoved { .. })).await;
+    assert!(!bob.messages(b_cid).await.unwrap().iter().any(|m| m.text == "oops, wrong chat"));
+
+    // Disappearing messages: Bob sets 1 second; both sides follow and erase.
+    bob.set_timer(b_cid, Some(1)).await.unwrap();
+    wait_for(&mut a_ev, |e| matches!(e, Event::Message { item, .. } if item.system)).await;
+    assert_eq!(alice.contacts().await[0].timer, Some(1));
+    let gone = alice.send_text(a_cid, "this will vanish").await.unwrap();
+    assert!(gone.expires_at.is_some());
+    wait_for(&mut b_ev, |e| matches!(e, Event::Message { item, .. } if item.text == "this will vanish")).await;
+    wait_for(&mut a_ev, |e| matches!(e, Event::ItemsRemoved { ids, .. } if ids.contains(&gone.id))).await;
+    wait_for(&mut b_ev, |e| matches!(e, Event::ItemsRemoved { .. })).await;
+    assert!(!bob.messages(b_cid).await.unwrap().iter().any(|m| m.text == "this will vanish"));
+
+    // Both sides compute the same security code.
+    let (ca, cb) = (alice.security_code(a_cid).await.unwrap(), bob.security_code(b_cid).await.unwrap());
+    assert!(ca.is_some());
+    assert_eq!(ca, cb);
+}
+
+/// Slow-ish: a file bigger than the relay's per-queue limit (256 messages) must still
+/// arrive, with the sender pausing while the queue is full. Run with `--ignored`.
+#[tokio::test]
+#[ignore]
+async fn large_file_exceeds_relay_queue_limit() {
+    let r = relay().await;
+    let (alice, bob) = (agent().await, agent().await);
+    let (a_cid, b_cid) = connect(&alice, &r, &bob, &r).await;
+    let mut b_ev = bob.subscribe();
+    let data: Vec<u8> = (0..6_000_000u32).map(|i| (i % 253) as u8).collect();
+    let started = std::time::Instant::now();
+    alice.send_file(a_cid, "video.mp4", "video/mp4", data.clone(), "").await.unwrap();
+    let Event::ItemUpdated { item, .. } = tokio::time::timeout(Duration::from_secs(120), async {
+        loop {
+            if let e @ Event::ItemUpdated { .. } = b_ev.recv().await.unwrap()
+                && let Event::ItemUpdated { item, .. } = &e
+                    && item.attachment.as_ref().unwrap().state != lethe_client::FileState::Transferring {
+                        return e;
+                    }
+        }
+    })
+    .await
+    .expect("file arrived in time")
+    else {
+        unreachable!()
+    };
+    assert_eq!(bob.file_data(b_cid, item.id).await.unwrap().2, data);
+    eprintln!("6 MB in {:?}", started.elapsed());
+}

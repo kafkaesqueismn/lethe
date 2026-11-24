@@ -5,7 +5,7 @@ use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 use std::sync::Mutex as StdMutex;
 
-use lethe_client::{Agent, AgentConfig, ChatItem, ContactInfo, RelayAddr, StoreLocation};
+use lethe_client::{Agent, AgentConfig, ChatItem, ClientError, ContactInfo, Direction, Event, RelayAddr, StoreLocation};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
@@ -28,6 +28,21 @@ struct Settings {
     /// Run a relay inside the app (started at launch, so it's up even while locked).
     #[serde(default)]
     host_relay: bool,
+    /// Tell contacts when you've seen their messages. `None` = default (on).
+    #[serde(default)]
+    read_receipts: Option<bool>,
+    /// "off", "hidden" ("New message"), "name" (sender only), or "full" (name and text).
+    #[serde(default)]
+    notifications: Option<String>,
+}
+
+impl Settings {
+    fn read_receipts(&self) -> bool {
+        self.read_receipts.unwrap_or(true)
+    }
+    fn notifications(&self) -> &str {
+        self.notifications.as_deref().unwrap_or("name")
+    }
 }
 
 #[derive(Default)]
@@ -165,15 +180,21 @@ async fn unlock(app: AppHandle, state: State<'_, AppState>, passphrase: String) 
         fast_kdf_for_tests: false,
     })
     .await
-    .map_err(err)?;
+    .map_err(|e| match e {
+        ClientError::BadPassphrase => "Wrong passphrase.".to_string(),
+        ClientError::OldStore => "OLD_PROFILE".to_string(),
+        e => e.to_string(),
+    })?;
 
     let mut rx = agent.subscribe();
     let handle = app.clone();
+    let notify_agent = agent.clone();
     tauri::async_runtime::spawn(async move {
         use tokio::sync::broadcast::error::RecvError;
         loop {
             match rx.recv().await {
                 Ok(e) => {
+                    maybe_notify(&handle, &notify_agent, &e).await;
                     let _ = handle.emit("lethe-event", &e);
                 }
                 Err(RecvError::Lagged(_)) => {
@@ -184,6 +205,51 @@ async fn unlock(app: AppHandle, state: State<'_, AppState>, passphrase: String) 
         }
     });
     *slot = Some(agent);
+    Ok(())
+}
+
+/// Show a desktop notification for an incoming message while the window isn't focused,
+/// revealing only as much as the user allowed.
+async fn maybe_notify(app: &AppHandle, agent: &Agent, e: &Event) {
+    use tauri_plugin_notification::NotificationExt;
+    let Event::Message { contact_id, item } = e else { return };
+    if item.system || item.direction != Direction::Received {
+        return;
+    }
+    let focused = app.get_webview_window("main").and_then(|w| w.is_focused().ok()).unwrap_or(false);
+    let mode = app.state::<AppState>().settings.lock().unwrap().notifications().to_string();
+    if focused || mode == "off" {
+        return;
+    }
+    let name = || async { agent.contacts().await.into_iter().find(|c| c.id == *contact_id).map(|c| c.name).unwrap_or_default() };
+    let (title, body) = match mode.as_str() {
+        "hidden" => ("lethe".to_string(), "New message".to_string()),
+        "full" => {
+            let text = match &item.attachment {
+                Some(a) if item.text.is_empty() => format!("📎 {}", a.name),
+                _ => item.text.chars().take(140).collect(),
+            };
+            (name().await, text)
+        }
+        _ => (name().await, "New message".to_string()),
+    };
+    let _ = app.notification().builder().title(title).body(body).show();
+}
+
+/// Erase the profile (encrypted store and attachments). Only possible while locked.
+#[tauri::command]
+async fn reset_profile(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    if state.agent.lock().await.is_some() {
+        return Err("lock lethe first".into());
+    }
+    let dir = data_dir(&app)?;
+    for f in ["lethe.db", "lethe.tmp"] {
+        let _ = std::fs::remove_file(dir.join(f));
+    }
+    let blobs = dir.join("blobs");
+    if blobs.is_dir() {
+        std::fs::remove_dir_all(blobs).map_err(err)?;
+    }
     Ok(())
 }
 
@@ -206,12 +272,15 @@ fn get_settings(app: AppHandle, state: State<'_, AppState>) -> Settings {
 fn set_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) -> CmdResult<()> {
     let clean = |o: Option<String>| o.map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
     let host_relay = state.settings.lock().unwrap().host_relay;
+    let notifications = settings.notifications.filter(|n| ["off", "hidden", "name", "full"].contains(&n.as_str()));
     let settings = Settings {
         relay: clean(settings.relay),
         socks_proxy: clean(settings.socks_proxy),
         profile_name: clean(settings.profile_name),
         auto_lock_minutes: settings.auto_lock_minutes.map(|m| m.min(24 * 60)),
         host_relay,
+        read_receipts: settings.read_receipts,
+        notifications,
     };
     if let Some(r) = &settings.relay {
         r.parse::<RelayAddr>().map_err(err)?;
@@ -285,6 +354,89 @@ async fn send_text(state: State<'_, AppState>, contact_id: u64, text: String) ->
     agent(&state).await?.send_text(contact_id, &text).await.map_err(err)
 }
 
+/// Send a file. The bytes come as the raw request body (no JSON/base64 overhead);
+/// metadata comes in headers.
+#[tauri::command]
+async fn send_file(state: State<'_, AppState>, request: tauri::ipc::Request<'_>) -> CmdResult<ChatItem> {
+    let tauri::ipc::InvokeBody::Raw(data) = request.body() else {
+        return Err("expected file bytes".into());
+    };
+    let header = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok()).map(|s| s.to_string());
+    let decode = |s: String| percent_decode(&s);
+    let contact_id: u64 = header("x-contact").and_then(|s| s.parse().ok()).ok_or("missing contact")?;
+    let name = header("x-name").map(decode).unwrap_or_else(|| "file".into());
+    let mime = header("x-mime").map(decode).unwrap_or_else(|| "application/octet-stream".into());
+    let caption = header("x-caption").map(decode).unwrap_or_default();
+    agent(&state).await?.send_file(contact_id, &name, &mime, data.clone(), &caption).await.map_err(err)
+}
+
+/// Minimal decoder for `encodeURIComponent` output (headers must be ASCII).
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len()
+            && let Some(v) = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok())
+        {
+            out.push(v);
+            i += 3;
+            continue;
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Raw bytes of an attachment, for showing images inline.
+#[tauri::command]
+async fn file_bytes(state: State<'_, AppState>, contact_id: u64, item_id: u64) -> CmdResult<tauri::ipc::Response> {
+    let (_, _, data) = agent(&state).await?.file_data(contact_id, item_id).await.map_err(err)?;
+    Ok(tauri::ipc::Response::new(data))
+}
+
+/// Save an attachment to the Downloads folder (decrypted). Returns the path.
+#[tauri::command]
+async fn save_file(app: AppHandle, state: State<'_, AppState>, contact_id: u64, item_id: u64) -> CmdResult<String> {
+    let (name, _, data) = agent(&state).await?.file_data(contact_id, item_id).await.map_err(err)?;
+    let dir = app.path().download_dir().or_else(|_| app.path().home_dir()).map_err(err)?;
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+        _ => (name.clone(), String::new()),
+    };
+    let mut path = dir.join(&name);
+    let mut n = 1;
+    while path.exists() {
+        path = dir.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+    std::fs::write(&path, data).map_err(err)?;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+async fn delete_items(state: State<'_, AppState>, contact_id: u64, ids: Vec<u64>, for_everyone: bool) -> CmdResult<()> {
+    agent(&state).await?.delete_items(contact_id, &ids, for_everyone).await.map_err(err)
+}
+
+#[tauri::command]
+async fn set_timer(state: State<'_, AppState>, contact_id: u64, ttl: Option<u32>) -> CmdResult<()> {
+    agent(&state).await?.set_timer(contact_id, ttl).await.map_err(err)
+}
+
+#[tauri::command]
+async fn mark_read(state: State<'_, AppState>, contact_id: u64) -> CmdResult<()> {
+    let receipts = state.settings.lock().unwrap().read_receipts();
+    agent(&state).await?.mark_read(contact_id, receipts).await.map_err(err)
+}
+
+#[tauri::command]
+async fn security_code(state: State<'_, AppState>, contact_id: u64) -> CmdResult<Option<String>> {
+    agent(&state).await?.security_code(contact_id).await.map_err(err)
+}
+
 #[tauri::command]
 async fn rename_contact(state: State<'_, AppState>, contact_id: u64, alias: Option<String>) -> CmdResult<()> {
     agent(&state).await?.rename_contact(contact_id, alias.filter(|a| !a.trim().is_empty())).await.map_err(err)
@@ -298,6 +450,7 @@ async fn delete_contact(state: State<'_, AppState>, contact_id: u64) -> CmdResul
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             profile_exists,
@@ -316,6 +469,14 @@ pub fn run() {
             host_local_relay,
             stop_local_relay,
             local_relay_address,
+            reset_profile,
+            send_file,
+            file_bytes,
+            save_file,
+            delete_items,
+            set_timer,
+            mark_read,
+            security_code,
         ])
         .setup(|app| {
             // Bring the hosted relay up at launch, before unlock, so contacts can

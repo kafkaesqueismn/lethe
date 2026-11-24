@@ -16,10 +16,11 @@ tokio-socks.workspace = true
 futures-util.workspace = true
 serde.workspace = true
 postcard.workspace = true
+ciborium.workspace = true
+sha2.workspace = true
 base64.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
-tracing.workspace = true
 
 [dev-dependencies]
 lethe-relay.workspace = true

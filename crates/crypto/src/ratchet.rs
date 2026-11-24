@@ -81,6 +81,12 @@ impl Ratchet {
         Self { dhs: our_ratchet, dhr: None, rk: sk, cks: None, ckr: None, ns: 0, nr: 0, pn: 0, skipped: vec![], ad }
     }
 
+    /// The handshake's associated data (both sides' identity keys). Identical on both
+    /// ends of an honest connection, so it's the basis of the security code.
+    pub fn associated_data(&self) -> &[u8] {
+        &self.ad
+    }
+
     /// Whether this side can encrypt yet. A receiver must decrypt one message first.
     pub fn can_send(&self) -> bool {
         self.cks.is_some()

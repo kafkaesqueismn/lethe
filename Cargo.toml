@@ -26,6 +26,7 @@ zeroize = { version = "1", features = ["derive"] }
 argon2 = "0.5"
 serde = { version = "1", features = ["derive"] }
 postcard = { version = "1", features = ["use-std"] }
+ciborium = "0.2"
 base64 = "0.22"
 thiserror = "2"
 anyhow = "1"

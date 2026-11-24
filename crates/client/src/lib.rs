@@ -20,5 +20,5 @@ mod transport;
 
 pub use agent::{Agent, AgentConfig, Event, StoreLocation};
 pub use error::{ClientError, Result};
-pub use model::{ChatItem, ContactInfo, ContactStatus, Direction, Invitation, ItemStatus};
+pub use model::{Attachment, ChatItem, ContactInfo, ContactStatus, Direction, FileState, Invitation, ItemStatus, CHUNK_SIZE, MAX_FILE_SIZE};
 pub use lethe_proto::RelayAddr;

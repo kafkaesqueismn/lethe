@@ -6,7 +6,8 @@ fn main() {
     // NVIDIA, common on Arch). Disable it unless the user chose otherwise.
     #[cfg(target_os = "linux")]
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        // SAFETY: runs first thing in main, before any other thread exists.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
     lethe_app_lib::run()
 }

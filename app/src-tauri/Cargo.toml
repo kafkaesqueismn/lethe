@@ -2,7 +2,7 @@
 name = "lethe-app"
 description = "lethe desktop and mobile app"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [lib]
@@ -19,6 +19,7 @@ lethe-relay = { path = "../../crates/relay" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync"] }
+tauri-plugin-notification = "2"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 
 [profile.release]
