@@ -1,13 +1,15 @@
 # Builds installers for every platform.
 #
 # * Push a tag like `v0.1.0`  -> builds everything and publishes a GitHub pre-release.
-# * Run it manually (Actions tab -> "Build installers" -> Run workflow) -> builds
-#   everything and attaches the files to the run as downloadable artifacts.
+# * Run it manually (Actions tab -> "Build installers" -> Run workflow), or push to a
+#   branch named build/<anything> -> builds everything and attaches the files to the
+#   run as downloadable artifacts, without publishing a release.
 name: Build installers
 
 on:
   push:
     tags: ["v*"]
+    branches: ["build/**"]
   workflow_dispatch:
 
 permissions:
@@ -108,16 +110,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # The generated Gradle project calls back into the Tauri CLI via `npm run tauri`,
+      # so the CLI is installed from app/src-tauri/package.json rather than run with npx.
+      - name: Install the Tauri CLI
+        working-directory: app/src-tauri
+        run: npm install --no-audit --no-fund
       - name: Generate the Android project
         working-directory: app/src-tauri
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          npx -y @tauri-apps/cli@2 android init --ci
+          npm run tauri -- android init --ci
       - name: Build APK
         working-directory: app/src-tauri
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          npx -y @tauri-apps/cli@2 android build --apk --ci
+          npm run tauri -- android build --apk --ci
       - name: Sign APK
         working-directory: app/src-tauri
         env:
