@@ -36,7 +36,6 @@ What a relay sees: queue IDs, the public keys authorizing them, timing, and opaq
 
 Known gaps, tracked for later:
 - The ratchet header isn't encrypted yet.
-- Relays keep messages only in memory.
 - There's no queue rotation yet.
 - There are no groups or file transfer yet.
 

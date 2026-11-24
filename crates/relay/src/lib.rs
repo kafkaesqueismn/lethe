@@ -6,9 +6,11 @@
 //! to the same person, message content, and client IP addresses. Nothing is logged
 //! per connection.
 //!
-//! Messages are held in memory. A restart drops undelivered messages; clients keep
-//! their own outbox, so the cost is redelivery rather than silent loss of a conversation.
+//! With a `data_dir`, queues and undelivered messages are snapshotted to disk (within a
+//! second of any change, and on shutdown), so a restart doesn't lose them. Stored bodies
+//! are still end-to-end encrypted; the relay can't read them.
 
+mod persist;
 mod tls;
 
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -27,6 +29,7 @@ use lethe_proto::{
 };
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::Message;
 
@@ -34,7 +37,8 @@ pub struct Config {
     pub listen: SocketAddr,
     /// Hostname clients use to reach this relay (goes into the printed address).
     pub public_host: String,
-    /// Where the TLS key/cert are kept. `None` generates an ephemeral one (tests).
+    /// Where the TLS identity and queue snapshot are kept. `None` keeps everything in
+    /// memory with an ephemeral certificate (tests).
     pub data_dir: Option<PathBuf>,
     pub message_ttl: Duration,
     pub max_queue_messages: usize,
@@ -61,6 +65,9 @@ pub struct RelayHandle {
     pub local_addr: SocketAddr,
     state: Arc<Mutex<State>>,
     tasks: Vec<JoinHandle<()>>,
+    snapshot: Option<PathBuf>,
+    /// Flipped to `true` to close the listener and every open connection.
+    stop_tx: watch::Sender<bool>,
 }
 
 impl RelayHandle {
@@ -70,30 +77,47 @@ impl RelayHandle {
         (s.queues.len(), s.queues.values().map(|q| q.msgs.len()).sum())
     }
 
+    /// Stop accepting, close every connection, and save. Returns immediately.
     pub fn shutdown(self) {
-        for t in &self.tasks {
+        let _ = self.stop_tx.send(true);
+    }
+
+    /// Like `shutdown`, but waits until the port is released, so the relay can be
+    /// started again on the same address right away.
+    pub async fn stop(mut self) {
+        let _ = self.stop_tx.send(true);
+        for t in std::mem::take(&mut self.tasks) {
             t.abort();
+            let _ = t.await;
         }
     }
 }
 
 impl Drop for RelayHandle {
     fn drop(&mut self) {
+        let _ = self.stop_tx.send(true);
         for t in &self.tasks {
             t.abort();
+        }
+        // Final snapshot so nothing acknowledged-as-sent since the last save is lost.
+        if let Some(path) = &self.snapshot {
+            let snap = persist::Snapshot::from_state(&self.state.lock().unwrap());
+            if let Err(e) = snap.write(path) {
+                eprintln!("lethe-relay: final save failed: {e}");
+            }
         }
     }
 }
 
 type Outbox = UnboundedSender<ServerFrame>;
 
-struct StoredMsg {
+pub(crate) struct StoredMsg {
     id: MsgId,
     ts: u64,
     body: Vec<u8>,
 }
 
-struct Queue {
+pub(crate) struct Queue {
     recipient_key: [u8; 32],
     sender_id: QueueId,
     sender_key: Option<[u8; 32]>,
@@ -105,12 +129,14 @@ struct Queue {
 }
 
 #[derive(Default)]
-struct State {
+pub(crate) struct State {
     queues: HashMap<QueueId, Queue>,
     /// sender ID -> recipient ID
     senders: HashMap<QueueId, QueueId>,
     recipient_keys: HashSet<[u8; 32]>,
     max_queue_messages: usize,
+    /// Changed since the last snapshot.
+    dirty: bool,
 }
 
 impl State {
@@ -137,6 +163,9 @@ impl State {
         for q in self.queues.values_mut() {
             let before = q.msgs.len();
             q.msgs.retain(|m| m.ts >= cutoff);
+            if q.msgs.len() != before {
+                self.dirty = true;
+            }
             if q.msgs.len() != before && q.delivered.is_some_and(|d| !q.msgs.iter().any(|m| m.id == d)) {
                 q.delivered = None;
             }
@@ -154,20 +183,35 @@ pub async fn start(config: Config) -> anyhow::Result<RelayHandle> {
     let listener = TcpListener::bind(config.listen).await?;
     let local_addr = listener.local_addr()?;
     let addr = RelayAddr { host: config.public_host.clone(), port: local_addr.port(), fingerprint: identity.fingerprint };
-    let state = Arc::new(Mutex::new(State { max_queue_messages: config.max_queue_messages, ..Default::default() }));
+    let mut initial = State { max_queue_messages: config.max_queue_messages, ..Default::default() };
+    let snapshot = config.data_dir.as_ref().map(|d| d.join("relay-state.bin"));
+    if let Some(path) = &snapshot
+        && let Some(snap) = persist::Snapshot::read(path)?
+    {
+        snap.restore(&mut initial);
+    }
+    let state = Arc::new(Mutex::new(initial));
 
+    let (stop_tx, stop_rx) = watch::channel(false);
     let accept_state = state.clone();
     let idle = config.idle_timeout;
+    let mut accept_stop = stop_rx.clone();
     let accept_task = tokio::spawn(async move {
         let conn_ids = Arc::new(AtomicU64::new(1));
         loop {
-            let Ok((tcp, _peer)) = listener.accept().await else { continue };
+            let accepted = tokio::select! {
+                a = listener.accept() => a,
+                _ = accept_stop.changed() => break,
+            };
+            let Ok((tcp, _peer)) = accepted else { continue };
             // `_peer` is intentionally never stored or logged.
             let (acceptor, state, id) = (acceptor.clone(), accept_state.clone(), conn_ids.fetch_add(1, Ordering::Relaxed));
+            let stop = accept_stop.clone();
             tokio::spawn(async move {
-                let _ = handle_connection(tcp, acceptor, state, id, idle).await;
+                let _ = handle_connection(tcp, acceptor, state, id, idle, stop).await;
             });
         }
+        // `listener` is dropped here, releasing the port.
     });
 
     let sweep_state = state.clone();
@@ -180,7 +224,32 @@ pub async fn start(config: Config) -> anyhow::Result<RelayHandle> {
         }
     });
 
-    Ok(RelayHandle { addr, local_addr, state, tasks: vec![accept_task, sweep_task] })
+    let mut tasks = vec![accept_task, sweep_task];
+    if let Some(path) = snapshot.clone() {
+        let save_state = state.clone();
+        tasks.push(tokio::spawn(async move {
+            let mut tick = tokio::time::interval(Duration::from_secs(1));
+            loop {
+                tick.tick().await;
+                let snap = {
+                    let mut st = save_state.lock().unwrap();
+                    if !st.dirty {
+                        continue;
+                    }
+                    st.dirty = false;
+                    persist::Snapshot::from_state(&st)
+                };
+                let p = path.clone();
+                let ok = tokio::task::spawn_blocking(move || snap.write(&p)).await;
+                if !matches!(ok, Ok(Ok(()))) {
+                    eprintln!("lethe-relay: saving queue snapshot failed; will retry");
+                    save_state.lock().unwrap().dirty = true;
+                }
+            }
+        }));
+    }
+
+    Ok(RelayHandle { addr, local_addr, state, tasks, snapshot, stop_tx })
 }
 
 async fn handle_connection(
@@ -189,7 +258,11 @@ async fn handle_connection(
     state: Arc<Mutex<State>>,
     conn_id: u64,
     idle: Duration,
+    mut stop: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
+    if *stop.borrow() {
+        return Ok(());
+    }
     tcp.set_nodelay(true)?;
     let tls = tokio::time::timeout(Duration::from_secs(15), acceptor.accept(tcp)).await??;
     let ws = tokio::time::timeout(Duration::from_secs(15), tokio_tungstenite::accept_async(tls)).await??;
@@ -210,7 +283,11 @@ async fn handle_connection(
 
     let mut subscribed: HashSet<QueueId> = HashSet::new();
     loop {
-        let msg = match tokio::time::timeout(idle, source.next()).await {
+        let next = tokio::select! {
+            n = tokio::time::timeout(idle, source.next()) => n,
+            _ = stop.changed() => break,
+        };
+        let msg = match next {
             Ok(Some(Ok(m))) => m,
             _ => break,
         };
@@ -222,9 +299,14 @@ async fn handle_connection(
         let Ok(frame) = decode_block::<ClientFrame>(&data) else { break };
         let corr_id = frame.corr_id;
         let entity = frame.entity;
+        let mutates = !matches!(frame.cmd, Command::Ping | Command::Sub);
         let (resp, deliver) = {
             let mut st = state.lock().unwrap();
-            process(&mut st, &session_id, conn_id, &tx, frame, &mut subscribed)
+            let r = process(&mut st, &session_id, conn_id, &tx, frame, &mut subscribed);
+            if mutates && !matches!(r.0, Response::Err(_)) {
+                st.dirty = true;
+            }
+            r
         };
         let reply_entity = match &resp {
             Response::Ids { recipient_id, .. } => *recipient_id,

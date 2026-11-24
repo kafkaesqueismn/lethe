@@ -154,3 +154,41 @@ async fn wrong_relay_fingerprint_is_rejected() {
     let err = alice.create_invite(&fake, None, None).await.unwrap_err();
     assert!(matches!(err, lethe_client::ClientError::Network(_)), "{err}");
 }
+
+#[tokio::test]
+async fn relay_restart_keeps_undelivered_messages() {
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = |port: u16| Config {
+        listen: format!("127.0.0.1:{port}").parse().unwrap(),
+        public_host: "127.0.0.1".into(),
+        data_dir: Some(dir.path().join("relay")),
+        ..Default::default()
+    };
+    let bob_store = || AgentConfig {
+        store: StoreLocation::File { path: dir.path().join("bob.db"), passphrase: "pw".into() },
+        socks_proxy: None,
+        fast_kdf_for_tests: true,
+    };
+    let r = lethe_relay::start(cfg(0)).await.unwrap();
+    let port = r.local_addr.port();
+    let alice = agent().await;
+    let bob = Agent::start(bob_store()).await.unwrap();
+    let (a_cid, b_cid) = connect(&alice, &r, &bob, &r).await;
+    bob.shutdown().await;
+    drop(bob);
+
+    let mut a_ev = alice.subscribe();
+    let sent = alice.send_text(a_cid, "survives a relay restart").await.unwrap();
+    wait_for(&mut a_ev, |e| matches!(e, Event::ItemStatus { item_id, status: ItemStatus::Sent, .. } if *item_id == sent.id)).await;
+    let addr = r.addr.clone();
+    r.stop().await; // closes connections, frees the port, writes the final snapshot
+
+    let r2 = lethe_relay::start(cfg(port)).await.unwrap();
+    assert_eq!(r2.addr, addr, "same identity and address after restart");
+    assert_eq!(r2.stats(), (2, 1), "both queues and the waiting message were restored");
+
+    let bob = Agent::start(bob_store()).await.unwrap();
+    let mut b_ev = bob.subscribe();
+    let Event::Message { contact_id, item } = wait_for(&mut b_ev, |e| matches!(e, Event::Message { .. })).await else { unreachable!() };
+    assert_eq!((contact_id, item.text.as_str()), (b_cid, "survives a relay restart"));
+}

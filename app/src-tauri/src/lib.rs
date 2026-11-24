@@ -235,8 +235,9 @@ async fn host_local_relay(app: AppHandle, state: State<'_, AppState>) -> CmdResu
 
 #[tauri::command]
 async fn stop_local_relay(app: AppHandle, state: State<'_, AppState>) -> CmdResult<Settings> {
-    if let Some(h) = state.local_relay.lock().await.take() {
-        h.shutdown();
+    let handle = state.local_relay.lock().await.take();
+    if let Some(h) = handle {
+        h.stop().await;
     }
     let mut s = load_settings(&app);
     s.host_relay = false;
