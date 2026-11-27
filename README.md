@@ -4,9 +4,9 @@
 
 A private messenger with **no user identifiers at all**: no accounts, phone numbers, emails, usernames or public keys that identify you. The design follows [SimpleX](https://simplex.chat/): contacts are connected by **pairwise, anonymous one-way queues** on relays, and messages are end-to-end encrypted with the **Double Ratchet**.
 
-> 🚧 **This is a prototype.** It's a personal project I'll keep working on over time, and the goal is for it to grow into a fully fledged app. For now it's an early prototype. Expect rough edges, missing features, and breaking changes to the protocol and storage formats between versions.
+> 🔬 **This is a research and learning project.** I use Lethe to study applied cryptography: I implement the protocols (X3DH-style key agreement, the Double Ratchet, AEAD, key management) from their specs on top of audited primitive libraries, then write up what I learn. See [docs/DESIGN.md](docs/DESIGN.md) for the framing, threat model and research notes. Expect breaking changes to the protocol and storage formats.
 >
-> ⚠️ The cryptography has **not** been independently audited. Please don't rely on it where your safety is at stake.
+> ⚠️ **Not production cryptography.** Nobody else has reviewed it. Don't rely on it where your safety is at stake.
 
 ## Features
 
